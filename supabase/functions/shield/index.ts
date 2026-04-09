@@ -230,7 +230,7 @@ async function handleGetTerms(req: Request): Promise<Response> {
         "id, policy_name, path_pattern, access_level, terms_text, allowed_uses, prohibited_uses, require_attribution, rate_limit_per_hour"
       )
       .eq("site_id", siteData.id)
-      .eq("is_active", true);
+      .eq("active", true);
 
     if (policiesError) {
       return errorResponse(
@@ -267,7 +267,7 @@ async function handleAgree(req: Request): Promise<Response> {
     }
 
     const { data: agentData, error: agentError } = await supabase
-      .from("agents")
+      .from("agent_keys")
       .select("id, agent_name")
       .eq("api_key", agentKey)
       .single();
@@ -344,7 +344,7 @@ async function handleAgree(req: Request): Promise<Response> {
         watermark,
         agent_name: agentData.agent_name,
         site_domain,
-        accepted_at: agreementData.created_at,
+        accepted_at: agreementData.accepted_at,
         terms_hash: termsHash,
       },
       201
@@ -379,7 +379,7 @@ async function handleCheck(req: Request): Promise<Response> {
       .from("shield_policies")
       .select("id, path_pattern, access_level")
       .eq("site_id", siteData.id)
-      .eq("is_active", true);
+      .eq("active", true);
 
     if (policiesError || !policiesData || policiesData.length === 0) {
       return errorResponse("No policies found for site", 404);
@@ -411,7 +411,7 @@ async function handleCheck(req: Request): Promise<Response> {
     } else if (matchingPolicy.access_level === "terms_required" && agentKey) {
       const { data: agreementData, error: agreementError } = await supabase
         .from("shield_agreements")
-        .select("id, agent_watermark, is_revoked, expires_at")
+        .select("id, agent_watermark, revoked, expires_at")
         .eq("agent_key", agentKey)
         .eq("site_id", siteData.id)
         .eq("policy_id", matchingPolicy.id)
@@ -420,7 +420,7 @@ async function handleCheck(req: Request): Promise<Response> {
       if (
         !agreementError &&
         agreementData &&
-        !agreementData.is_revoked &&
+        !agreementData.revoked &&
         (!agreementData.expires_at ||
           new Date(agreementData.expires_at) > new Date())
       ) {
@@ -437,11 +437,10 @@ async function handleCheck(req: Request): Promise<Response> {
 
     await supabase.from("shield_access_log").insert({
       site_id: siteData.id,
-      policy_id: matchingPolicy.id,
       agent_key: agentKey || null,
-      path,
+      request_path: path,
       access_granted: accessGranted,
-      reason,
+      denial_reason: accessGranted ? null : reason,
     });
 
     return successResponse({
@@ -474,15 +473,15 @@ async function handleMyAgreements(req: Request): Promise<Response> {
         agent_watermark,
         terms_version,
         terms_hash,
-        is_revoked,
+        revoked,
         expires_at,
-        created_at,
+        accepted_at,
         shield_sites(site_name, site_domain),
         shield_policies(policy_name, path_pattern, access_level)
       `
       )
       .eq("agent_key", agentKey)
-      .order("created_at", { ascending: false });
+      .order("accepted_at", { ascending: false });
 
     if (agreementsError) {
       return errorResponse(
@@ -502,9 +501,9 @@ async function handleMyAgreements(req: Request): Promise<Response> {
       access_level: agreement.shield_policies?.access_level,
       terms_version: agreement.terms_version,
       terms_hash: agreement.terms_hash,
-      is_revoked: agreement.is_revoked,
+      revoked: agreement.revoked,
       expires_at: agreement.expires_at,
-      created_at: agreement.created_at,
+      accepted_at: agreement.accepted_at,
     }));
 
     return successResponse({
@@ -541,19 +540,19 @@ async function handleDashboard(req: Request): Promise<Response> {
       .from("shield_access_log")
       .select("*", { count: "exact", head: true })
       .eq("site_id", siteData.id)
-      .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+      .gte("accessed_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
 
     const { count: agreementsCount, error: agreementsError } = await supabase
       .from("shield_agreements")
       .select("*", { count: "exact", head: true })
       .eq("site_id", siteData.id)
-      .eq("is_revoked", false);
+      .eq("revoked", false);
 
     const { data: recentLogs, error: recentError } = await supabase
       .from("shield_access_log")
-      .select("path, access_granted, created_at")
+      .select("request_path, access_granted, accessed_at")
       .eq("site_id", siteData.id)
-      .order("created_at", { ascending: false })
+      .order("accessed_at", { ascending: false })
       .limit(20);
 
     if (logsError || agreementsError) {
@@ -582,12 +581,12 @@ async function handleStats(): Promise<Response> {
     const { count: agreementsCount } = await supabase
       .from("shield_agreements")
       .select("*", { count: "exact", head: true })
-      .eq("is_revoked", false);
+      .eq("revoked", false);
 
     const { count: recentRequestsCount } = await supabase
       .from("shield_access_log")
       .select("*", { count: "exact", head: true })
-      .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+      .gte("accessed_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
     return successResponse({
       total_sites: sitesCount || 0,
@@ -614,7 +613,7 @@ async function handler(req: Request): Promise<Response> {
     return errorResponse("Invalid route", 404);
   }
 
-  const route = pathname.substring(shieldIndex + 6);
+  const route = pathname.substring(shieldIndex + 7);
 
   if (req.method === "POST" && route === "/register") {
     return await handleRegister(req);
