@@ -1,0 +1,11 @@
+{
+  "buildCommand": "echo 'Static SPA - no build needed'",
+  "outputDirectory": ".",
+  "devCommand": "npx http-server -p 3000",
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
