@@ -1,6 +1,3 @@
-#!/usr/bin/env node
-
-import fetch from "node-fetch";
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 
