@@ -2,6 +2,7 @@
   "name": "@agentpedia/mcp-server",
   "version": "1.1.0",
   "description": "MCP server for AgentPedia - the knowledge base built for AI agents",
+  "mcpName": "io.github.3xfreedom/agentpedia-mcp-server",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
