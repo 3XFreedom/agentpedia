@@ -12,7 +12,6 @@
     "start": "node dist/index.js",
     "prepublishOnly": "npm run build"
   },
-  "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.0.0",
     "esbuild": "^0.28.0",

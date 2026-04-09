@@ -4,6 +4,19 @@
   "devCommand": "npx http-server -p 3000",
   "routes": [
     {
+      "src": "/shield\\.js",
+      "dest": "/shield.js",
+      "headers": {
+        "Content-Type": "application/javascript",
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=3600"
+      }
+    },
+    {
+      "src": "/\\.well-known/(.*)",
+      "dest": "/.well-known/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
