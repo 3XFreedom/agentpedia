@@ -6,13 +6,13 @@
     "url": "https://github.com/3xfreedom/agentpedia",
     "source": "github"
   },
-  "version": "1.1.0",
+  "version": "1.1.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@agentpedia/mcp-server",
-      "version": "1.1.0",
-      "transport": ["stdio"],
+      "version": "1.1.1",
+      "transport": "stdio",
       "environmentVariables": [
         {
           "name": "AGENTPEDIA_API_KEY",
