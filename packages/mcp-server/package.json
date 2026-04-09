@@ -1,0 +1,48 @@
+{
+  "name": "@agentpedia/mcp-server",
+  "version": "1.1.0",
+  "description": "MCP server for AgentPedia - the knowledge base built for AI agents",
+  "main": "dist/index.js",
+  "bin": {
+    "agentpedia-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js",
+    "test": "echo \"No tests configured\"",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "node-fetch": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  },
+  "keywords": [
+    "mcp",
+    "ai-agents",
+    "agentpedia",
+    "tool-discovery",
+    "model-context-protocol",
+    "claude",
+    "cursor",
+    "windsurf",
+    "agent-tools"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/3xfreedom/agentpedia.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
+}

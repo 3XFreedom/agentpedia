@@ -1,0 +1,25 @@
+# Example: Add this to your repo at .github/workflows/agentpedia.yml
+# This will automatically submit/update your listing on AgentPedia
+# every time you publish a GitHub release.
+
+name: Submit to AgentPedia
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: 3xfreedom/agentpedia/.github/actions/submit-to-agentpedia@main
+        with:
+          api_key: ${{ secrets.AGENTPEDIA_API_KEY }}
+          name: 'My Awesome Tool'
+          slug: 'my-awesome-tool'
+          type: 'tool'                    # agent, api, or tool
+          category: 'developer_tools'     # ai_agents, developer_tools, data_processing, etc.
+          short_description: 'A tool that does something amazing for AI agents'
+          website: 'https://myawesometool.com'
+          documentation_url: 'https://docs.myawesometool.com'
+          capabilities: 'code-generation,testing,automation'

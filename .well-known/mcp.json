@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "agentpedia": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@agentpedia/mcp-server"],
+      "description": "AgentPedia - The Knowledge Base Built for AI Agents"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.agentpedia/mcp-server",
+  "description": "MCP server for AgentPedia - the knowledge base built for AI agents. Search, discover, and contribute to a structured directory of AI tools, APIs, and agents.",
+  "repository": {
+    "url": "https://github.com/3xfreedom/agentpedia",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@agentpedia/mcp-server",
+      "version": "1.0.0",
+      "transport": ["stdio"],
+      "environmentVariables": [
+        {
+          "name": "AGENTPEDIA_API_KEY",
+          "description": "API key for authenticated access (optional, register at the API for free)",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

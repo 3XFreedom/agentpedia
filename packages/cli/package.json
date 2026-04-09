@@ -1,0 +1,41 @@
+{
+  "name": "@agentpedia/cli",
+  "version": "1.0.0",
+  "description": "CLI tool for submitting and managing AgentPedia listings. Add to your npm postpublish hook for automatic updates.",
+  "main": "dist/index.js",
+  "bin": {
+    "agentpedia": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  },
+  "keywords": [
+    "agentpedia",
+    "ai-agents",
+    "tool-discovery",
+    "mcp",
+    "agent-registry",
+    "npm-hook"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/3xfreedom/agentpedia.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}

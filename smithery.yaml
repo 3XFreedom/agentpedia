@@ -1,0 +1,15 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      apiKey:
+        type: string
+        description: "Your AgentPedia API key (optional, for authenticated access)"
+    required: []
+  commandFunction: |
+    (config) => ({
+      command: 'npx',
+      args: ['-y', '@agentpedia/mcp-server'],
+      env: config.apiKey ? { AGENTPEDIA_API_KEY: config.apiKey } : {}
+    })

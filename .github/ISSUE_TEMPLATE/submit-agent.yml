@@ -1,0 +1,208 @@
+name: Submit Agent or Tool
+description: Submit a new agent, API, or tool to AgentPedia
+title: "Submit: [Agent/Tool Name]"
+labels: ["submission", "pending-review"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for contributing to AgentPedia! Please provide as much detail as possible about the agent or tool you're submitting.
+
+  - type: input
+    id: name
+    attributes:
+      label: Agent/Tool Name
+      description: The official name of the agent or tool
+      placeholder: "e.g., Claude 3.5, GPT-4o, LangChain"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      description: What is this submission?
+      options:
+        - AI Agent / LLM
+        - API / Service
+        - Developer Tool / Library
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: Select the most relevant category
+      options:
+        - LLM
+        - API Provider
+        - Framework/Library
+        - Data Processing
+        - Web Automation
+        - Code Generation
+        - Search/Research
+        - Specialized
+    validations:
+      required: true
+
+  - type: textarea
+    id: short_description
+    attributes:
+      label: Short Description
+      description: One-line summary (max 200 characters)
+      placeholder: "A brief, concise description of what this tool does"
+    validations:
+      required: true
+
+  - type: textarea
+    id: long_description
+    attributes:
+      label: Detailed Description
+      description: Comprehensive overview of the agent/tool
+      placeholder: |
+        Explain:
+        - What it does
+        - Key capabilities
+        - Main use cases
+        - How it differs from similar tools
+      rows: 5
+    validations:
+      required: true
+
+  - type: input
+    id: website
+    attributes:
+      label: Official Website
+      description: URL to the official product page
+      placeholder: "https://example.com"
+    validations:
+      required: true
+
+  - type: input
+    id: documentation_url
+    attributes:
+      label: Documentation URL
+      description: Link to API docs, user guide, or documentation
+      placeholder: "https://docs.example.com"
+    validations:
+      required: false
+
+  - type: input
+    id: github_url
+    attributes:
+      label: GitHub Repository (optional)
+      description: If open-source, link to the GitHub repo
+      placeholder: "https://github.com/user/repo"
+    validations:
+      required: false
+
+  - type: input
+    id: api_endpoint
+    attributes:
+      label: API Endpoint (if applicable)
+      description: Base URL for API access
+      placeholder: "https://api.example.com"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: auth_type
+    attributes:
+      label: Authentication Type
+      description: How does it authenticate?
+      options:
+        - API Key
+        - OAuth 2.0
+        - Bearer Token
+        - API Key + Secret
+        - Webhook
+        - No Auth / Public
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: capabilities
+    attributes:
+      label: Capabilities
+      description: List key capabilities (one per line)
+      placeholder: |
+        reasoning
+        code-generation
+        vision
+        tool-use
+      rows: 4
+    validations:
+      required: false
+
+  - type: textarea
+    id: pricing
+    attributes:
+      label: Pricing
+      description: Pricing model and details (if applicable)
+      placeholder: |
+        Model: Pay-per-token
+        Pricing: $0.003 per 1K input tokens, $0.015 per 1K output
+        Free tier: No
+      rows: 3
+    validations:
+      required: false
+
+  - type: textarea
+    id: limitations
+    attributes:
+      label: Known Limitations
+      description: Context windows, rate limits, known issues
+      placeholder: |
+        - 200K context window
+        - Rate limit: 50 requests/second
+        - Knowledge cutoff: February 2025
+      rows: 3
+    validations:
+      required: false
+
+  - type: input
+    id: creator_name
+    attributes:
+      label: Creator/Organization
+      description: Who created this tool?
+      placeholder: "e.g., Anthropic, OpenAI"
+    validations:
+      required: false
+
+  - type: input
+    id: creator_email
+    attributes:
+      label: Your Email
+      description: We'll use this to contact you about your submission
+      placeholder: "your@email.com"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: Verification
+      description: Please confirm the following
+      options:
+        - label: I have verified this information is accurate and current
+          required: true
+        - label: This submission does not contain confidential or proprietary information
+          required: true
+        - label: I have reviewed the Code of Conduct and agree to abide by it
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for your submission! Our community will review it and it will be published once it reaches the approval threshold. You can track its status in the GitHub issue.
+
+        **What happens next:**
+        1. Community members will review your submission
+        2. Once it reaches an approval weight of 5.0+, it will be automatically published
+        3. You'll receive reputation points for quality submissions
+        4. Check the [FAQ](https://github.com/3xfreedom/agentpedia#faq) for more information

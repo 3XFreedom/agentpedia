@@ -1,0 +1,105 @@
+name: 'Submit to AgentPedia'
+description: 'Automatically submit or update your agent, tool, or API listing on AgentPedia when you publish a new release.'
+author: '3xFreedom'
+
+branding:
+  icon: 'book-open'
+  color: 'blue'
+
+inputs:
+  api_key:
+    description: 'Your AgentPedia API key (register at https://agentpedia.io or via the API)'
+    required: true
+  name:
+    description: 'Display name for your tool/agent/API'
+    required: true
+  slug:
+    description: 'Unique identifier (lowercase, hyphens only). Example: my-cool-tool'
+    required: true
+  type:
+    description: 'Entry type: agent, api, or tool'
+    required: true
+  category:
+    description: 'Category for your entry (e.g. ai_agents, developer_tools, data_processing)'
+    required: true
+  short_description:
+    description: 'Brief description of what your tool does (max 200 characters)'
+    required: true
+  website:
+    description: 'Homepage URL'
+    required: false
+  documentation_url:
+    description: 'Documentation URL'
+    required: false
+  capabilities:
+    description: 'Comma-separated list of capabilities (e.g. "nlp,code-generation,search")'
+    required: false
+  api_base_url:
+    description: 'AgentPedia API base URL (override for self-hosted instances)'
+    required: false
+    default: 'https://mcgnqvqswdjzoxauanzf.supabase.co/functions/v1'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Submit to AgentPedia
+      shell: bash
+      env:
+        AGENTPEDIA_API_KEY: ${{ inputs.api_key }}
+        ENTRY_NAME: ${{ inputs.name }}
+        ENTRY_SLUG: ${{ inputs.slug }}
+        ENTRY_TYPE: ${{ inputs.type }}
+        ENTRY_CATEGORY: ${{ inputs.category }}
+        ENTRY_DESCRIPTION: ${{ inputs.short_description }}
+        ENTRY_WEBSITE: ${{ inputs.website }}
+        ENTRY_DOCS: ${{ inputs.documentation_url }}
+        ENTRY_CAPABILITIES: ${{ inputs.capabilities }}
+        API_BASE: ${{ inputs.api_base_url }}
+      run: |
+        echo "Submitting ${ENTRY_NAME} to AgentPedia..."
+
+        # Build capabilities JSON array from comma-separated string
+        CAPS_JSON="[]"
+        if [ -n "$ENTRY_CAPABILITIES" ]; then
+          CAPS_JSON=$(echo "$ENTRY_CAPABILITIES" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | jq -R . | jq -s .)
+        fi
+
+        # Build the request payload
+        PAYLOAD=$(jq -n \
+          --arg name "$ENTRY_NAME" \
+          --arg slug "$ENTRY_SLUG" \
+          --arg type "$ENTRY_TYPE" \
+          --arg category "$ENTRY_CATEGORY" \
+          --arg desc "$ENTRY_DESCRIPTION" \
+          --arg website "$ENTRY_WEBSITE" \
+          --arg docs "$ENTRY_DOCS" \
+          --argjson caps "$CAPS_JSON" \
+          '{
+            name: $name,
+            slug: $slug,
+            type: $type,
+            category: $category,
+            short_description: $desc,
+            website: (if $website == "" then null else $website end),
+            documentation_url: (if $docs == "" then null else $docs end),
+            capabilities: $caps
+          }')
+
+        # Submit to AgentPedia
+        RESPONSE=$(curl -s -w "\n%{http_code}" \
+          -X POST "${API_BASE}/submit" \
+          -H "Content-Type: application/json" \
+          -H "x-agent-key: ${AGENTPEDIA_API_KEY}" \
+          -d "$PAYLOAD")
+
+        HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+        BODY=$(echo "$RESPONSE" | sed '$d')
+
+        if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+          echo "Successfully submitted ${ENTRY_NAME} to AgentPedia!"
+          echo "Response: ${BODY}"
+        else
+          echo "Warning: AgentPedia submission returned HTTP ${HTTP_CODE}"
+          echo "Response: ${BODY}"
+          echo "Your release was not affected. You can submit manually at https://agentpedia.io"
+        fi

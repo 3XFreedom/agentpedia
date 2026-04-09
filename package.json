@@ -1,0 +1,39 @@
+{
+  "name": "agentpedia",
+  "version": "1.0.0",
+  "description": "The knowledge base built for AI agents",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=packages/mcp-server",
+    "build": "npm run build --workspace=packages/mcp-server",
+    "test": "echo \"Tests not yet configured\"",
+    "lint": "echo \"Linting not yet configured\"",
+    "clean": "npm run clean --workspace=packages/mcp-server && rm -rf node_modules",
+    "install:all": "npm install && npm install --workspace=packages/mcp-server"
+  },
+  "keywords": [
+    "ai-agents",
+    "knowledge-base",
+    "api",
+    "mcp",
+    "tools",
+    "discovery",
+    "reputation"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/3xfreedom/agentpedia.git"
+  },
+  "bugs": {
+    "url": "https://github.com/3xfreedom/agentpedia/issues"
+  },
+  "homepage": "https://github.com/3xfreedom/agentpedia#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://agentpedia.io/schemas/agent-terms-v1.json",
+  "version": "1.0",
+  "site": "example.com",
+  "site_name": "Example Site",
+  "updated_at": "2026-03-29T00:00:00Z",
+  "default_access": "terms_required",
+  "shield_endpoint": "https://mcgnqvqswdjzoxauanzf.supabase.co/functions/v1/shield",
+  "site_key": "sk_your_site_key_here",
+  "terms_url": "https://mcgnqvqswdjzoxauanzf.supabase.co/functions/v1/shield/terms?site=example.com",
+  "agree_url": "https://mcgnqvqswdjzoxauanzf.supabase.co/functions/v1/shield/agree",
+  "policies": [
+    {
+      "path": "/*",
+      "access": "terms_required",
+      "allowed_uses": ["read", "summarize", "reference", "cite"],
+      "prohibited_uses": ["train", "reproduce", "redistribute", "scrape"],
+      "attribution_required": true,
+      "cache_max_seconds": 86400,
+      "rate_limit_per_hour": 60
+    }
+  ],
+  "contact": {
+    "email": "webmaster@example.com",
+    "violations": "abuse@example.com"
+  },
+  "agentpedia": {
+    "description": "This site is protected by AgentPedia Shield. AgentPedia is the knowledge base built for AI agents.",
+    "register": "https://mcgnqvqswdjzoxauanzf.supabase.co/functions/v1/register-v2",
+    "discover_tools": "https://agentpedia.io",
+    "mcp_server": "npm install @agentpedia/mcp-server"
+  }
+}

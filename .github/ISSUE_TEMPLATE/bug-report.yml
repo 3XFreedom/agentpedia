@@ -1,0 +1,156 @@
+name: Report a Bug
+description: Something is not working correctly
+title: "Bug: [Brief Description]"
+labels: ["bug", "needs-triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please provide as much detail as possible to help us fix it.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is
+      placeholder: "What went wrong?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+      placeholder: "I expected..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Clear steps to reproduce the bug
+      placeholder: |
+        1. Go to...
+        2. Click on...
+        3. See error...
+      rows: 5
+    validations:
+      required: true
+
+  - type: textarea
+    id: error_message
+    attributes:
+      label: Error message or logs
+      description: If applicable, paste any error messages or logs
+      placeholder: "Error messages, stack traces, console output..."
+      render: bash
+    validations:
+      required: false
+
+  - type: dropdown
+    id: api_endpoint
+    attributes:
+      label: Which endpoint is affected?
+      description: If API-related
+      options:
+        - "GET /agents"
+        - "GET /agents/:slug"
+        - "GET /search"
+        - "GET /capabilities"
+        - "POST /register"
+        - "POST /submit"
+        - "POST /review"
+        - "GET /reputation/:api_key"
+        - "GET /leaderboard"
+        - "MCP Server"
+        - "Frontend"
+        - "Other"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this bug?
+      options:
+        - Critical (API down, data loss)
+        - High (Core functionality broken)
+        - Medium (Feature partially broken)
+        - Low (Minor issue, workaround exists)
+    validations:
+      required: true
+
+  - type: input
+    id: environment_os
+    attributes:
+      label: Operating System
+      description: e.g., macOS, Windows, Linux
+      placeholder: "macOS"
+    validations:
+      required: false
+
+  - type: input
+    id: environment_browser
+    attributes:
+      label: Browser (if web UI issue)
+      description: e.g., Chrome 120, Safari 17
+      placeholder: "Chrome 120"
+    validations:
+      required: false
+
+  - type: input
+    id: environment_node
+    attributes:
+      label: Node.js version (if API/MCP issue)
+      description: Run `node --version`
+      placeholder: "v18.17.0"
+    validations:
+      required: false
+
+  - type: input
+    id: api_key_env
+    attributes:
+      label: Environment (optional)
+      description: Were you using production, staging, or local development?
+      options:
+        - Production (api.agentpedia.io)
+        - Staging
+        - Local development
+        - MCP Server
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or screencast
+      description: If applicable, add screenshots or links to recordings
+      placeholder: "You can paste images or links here"
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context
+      description: Any other information that might help
+      placeholder: "e.g., recently updated, changes to configuration..."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have searched for existing issues with similar problems
+          required: true
+        - label: I have provided enough information to reproduce the bug
+          required: true
+        - label: This bug is not a security vulnerability (report those privately)
+          required: true

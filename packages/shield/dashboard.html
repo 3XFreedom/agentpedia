@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgentPedia Shield - Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            shield: { 50: '#f0f0ff', 100: '#e0e0ff', 200: '#c4b5fd', 400: '#6c63ff', 500: '#5b54e6', 600: '#4a45c0', 900: '#13132b' },
+            dark: { 800: '#1a1a2e', 900: '#0f0f23' }
+          }
+        }
+      }
+    };
+  </script>
+</head>
+<body class="bg-dark-900 text-gray-200 min-h-screen">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+    const SHIELD_API = "https://mcgnqvqswdjzoxauanzf.supabase.co/functions/v1/shield";
+
+    // ---- Icon components ----
+    const ShieldIcon = () => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-shield-400">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    );
+
+    // ---- Auth / Setup Screen ----
+    function SetupScreen({ onSetup, onLogin }) {
+      const [tab, setTab] = useState("register");
+      const [email, setEmail] = useState("");
+      const [domain, setDomain] = useState("");
+      const [siteName, setSiteName] = useState("");
+      const [siteKey, setSiteKey] = useState("");
+      const [siteSecret, setSiteSecret] = useState("");
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState("");
+
+      async function handleRegister(e) {
+        e.preventDefault();
+        setLoading(true);
+        setError("");
+        try {
+          const res = await fetch(SHIELD_API + "/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, site_domain: domain, site_name: siteName }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Registration failed");
+          onSetup(data);
+        } catch (err) {
+          setError(err.message);
+        }
+        setLoading(false);
+      }
+
+      function handleLogin(e) {
+        e.preventDefault();
+        if (siteKey && siteSecret) onLogin(siteKey, siteSecret);
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center p-6">
+          <div className="max-w-lg w-full">
+            <div className="text-center mb-8">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <ShieldIcon />
+                <h1 className="text-3xl font-bold text-white">AgentPedia Shield</h1>
+              </div>
+              <p className="text-gray-400">Protect your content. Control how AI agents access your site.</p>
+            </div>
+
+            <div className="flex gap-2 mb-6">
+              <button onClick={() => setTab("register")} className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${tab === "register" ? "bg-shield-400 text-white" : "bg-dark-800 text-gray-400 hover:text-white"}`}>
+                Register New Site
+              </button>
+              <button onClick={() => setTab("login")} className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${tab === "login" ? "bg-shield-400 text-white" : "bg-dark-800 text-gray-400 hover:text-white"}`}>
+                Existing Site
+              </button>
+            </div>
+
+            {tab === "register" ? (
+              <form onSubmit={handleRegister} className="bg-dark-800 rounded-xl p-6 space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Email</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-shield-400 focus:outline-none" placeholder="you@example.com" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Domain</label>
+                  <input type="text" value={domain} onChange={e => setDomain(e.target.value)} required className="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-shield-400 focus:outline-none" placeholder="example.com" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Site Name (optional)</label>
+                  <input type="text" value={siteName} onChange={e => setSiteName(e.target.value)} className="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-shield-400 focus:outline-none" placeholder="My Awesome Site" />
+                </div>
+                {error && <p className="text-red-400 text-sm">{error}</p>}
+                <button type="submit" disabled={loading} className="w-full bg-shield-400 hover:bg-shield-500 text-white font-medium py-2.5 rounded-lg transition disabled:opacity-50">
+                  {loading ? "Registering..." : "Register & Get Protected"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleLogin} className="bg-dark-800 rounded-xl p-6 space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Site Key</label>
+                  <input type="text" value={siteKey} onChange={e => setSiteKey(e.target.value)} required className="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white font-mono text-sm focus:border-shield-400 focus:outline-none" placeholder="sk_..." />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Site Secret</label>
+                  <input type="password" value={siteSecret} onChange={e => setSiteSecret(e.target.value)} required className="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white font-mono text-sm focus:border-shield-400 focus:outline-none" placeholder="ss_..." />
+                </div>
+                <button type="submit" className="w-full bg-shield-400 hover:bg-shield-500 text-white font-medium py-2.5 rounded-lg transition">
+                  View Dashboard
+                </button>
+              </form>
+            )}
+
+            <p className="text-center text-gray-500 text-xs mt-6">
+              Part of the <a href="https://agentpedia.io" className="text-shield-400 hover:underline">AgentPedia</a> ecosystem
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // ---- Onboarding Screen (after registration) ----
+    function OnboardingScreen({ data, onContinue }) {
+      const [copied, setCopied] = useState("");
+
+      function copy(text, label) {
+        navigator.clipboard.writeText(text);
+        setCopied(label);
+        setTimeout(() => setCopied(""), 2000);
+      }
+
+      const snippetCode = '<script src="https://cdn.agentpedia.io/shield.js"\n        data-site-key="' + data.site_key + '"\n        data-mode="enforce">\n<\/script>';
+
+      const agentTermsJson = JSON.stringify(data.agent_terms_json, null, 2);
+
+      return (
+        <div className="min-h-screen flex items-center justify-center p-6">
+          <div className="max-w-2xl w-full">
+            <div className="text-center mb-8">
+              <div className="text-4xl mb-3">&#x2705;</div>
+              <h2 className="text-2xl font-bold text-white mb-2">Site Registered!</h2>
+              <p className="text-gray-400">{data.site_domain} is now protected by AgentPedia Shield</p>
+            </div>
+
+            <div className="space-y-6">
+              <div className="bg-dark-800 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-3">Your Credentials (save these!)</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between bg-dark-900 rounded-lg px-4 py-3">
+                    <div><span className="text-gray-400 text-sm">Site Key:</span> <span className="font-mono text-shield-400">{data.site_key}</span></div>
+                    <button onClick={() => copy(data.site_key, "key")} className="text-xs text-gray-400 hover:text-white">{copied === "key" ? "Copied!" : "Copy"}</button>
+                  </div>
+                  <div className="flex items-center justify-between bg-dark-900 rounded-lg px-4 py-3">
+                    <div><span className="text-gray-400 text-sm">Site Secret:</span> <span className="font-mono text-shield-400">{data.site_secret}</span></div>
+                    <button onClick={() => copy(data.site_secret, "secret")} className="text-xs text-gray-400 hover:text-white">{copied === "secret" ? "Copied!" : "Copy"}</button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-dark-800 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-3">Step 1: Add the Shield Snippet</h3>
+                <p className="text-gray-400 text-sm mb-3">Add this to your site's HTML, right before the closing body tag:</p>
+                <div className="relative">
+                  <pre className="bg-dark-900 rounded-lg p-4 text-sm text-green-400 overflow-x-auto">{snippetCode}</pre>
+                  <button onClick={() => copy(snippetCode, "snippet")} className="absolute top-2 right-2 text-xs bg-dark-800 text-gray-400 hover:text-white px-2 py-1 rounded">
+                    {copied === "snippet" ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-dark-800 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-3">Step 2: Add agent-terms.json</h3>
+                <p className="text-gray-400 text-sm mb-3">Place this file at <code className="text-shield-400">/.well-known/agent-terms.json</code> on your domain:</p>
+                <div className="relative">
+                  <pre className="bg-dark-900 rounded-lg p-4 text-sm text-blue-400 overflow-x-auto max-h-48">{agentTermsJson}</pre>
+                  <button onClick={() => copy(agentTermsJson, "json")} className="absolute top-2 right-2 text-xs bg-dark-800 text-gray-400 hover:text-white px-2 py-1 rounded">
+                    {copied === "json" ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+
+              <button onClick={() => onContinue(data.site_key, data.site_secret)} className="w-full bg-shield-400 hover:bg-shield-500 text-white font-medium py-3 rounded-lg transition">
+                Go to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ---- Main Dashboard ----
+    function Dashboard({ siteKey, siteSecret }) {
+      const [data, setData] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [activeTab, setActiveTab] = useState("overview");
+
+      const fetchDashboard = useCallback(async () => {
+        try {
+          const res = await fetch(SHIELD_API + "/dashboard", {
+            headers: { "x-site-key": siteKey, "x-site-secret": siteSecret },
+          });
+          if (!res.ok) throw new Error("Failed to load dashboard");
+          const d = await res.json();
+          setData(d);
+        } catch (err) {
+          console.error(err);
+        }
+        setLoading(false);
+      }, [siteKey, siteSecret]);
+
+      useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+
+      if (loading) {
+        return (
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="text-gray-400">Loading dashboard...</div>
+          </div>
+        );
+      }
+
+      if (!data) {
+        return (
+          <div className="min-h-screen flex items-center justify-center">
+            <div className="text-red-400">Failed to load dashboard. Check your credentials.</div>
+          </div>
+        );
+      }
+
+      const totalRequests = (data.daily_stats || []).reduce((sum, d) => sum + (d.total_requests || 0), 0);
+      const totalGranted = (data.daily_stats || []).reduce((sum, d) => sum + (d.granted_requests || 0), 0);
+      const totalBlocked = (data.daily_stats || []).reduce((sum, d) => sum + (d.blocked_requests || 0), 0);
+      const activeAgreements = (data.agreements || []).filter(a => !a.revoked).length;
+
+      const tabs = [
+        { id: "overview", label: "Overview" },
+        { id: "agreements", label: "Agreements (" + activeAgreements + ")" },
+        { id: "access", label: "Access Log" },
+        { id: "violations", label: "Violations (" + (data.open_violations || []).length + ")" },
+        { id: "setup", label: "Setup" },
+      ];
+
+      return (
+        <div className="min-h-screen">
+          <nav className="bg-dark-800 border-b border-gray-800 px-6 py-4">
+            <div className="max-w-6xl mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <ShieldIcon />
+                <span className="text-lg font-semibold text-white">AgentPedia Shield</span>
+                <span className="text-sm text-gray-400 ml-2">{data.site_domain}</span>
+              </div>
+              <a href="https://agentpedia.io" target="_blank" rel="noopener" className="text-sm text-shield-400 hover:underline">AgentPedia</a>
+            </div>
+          </nav>
+
+          <div className="max-w-6xl mx-auto px-6 py-8">
+            {/* Stats cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-dark-800 rounded-xl p-5">
+                <div className="text-2xl font-bold text-white">{totalRequests}</div>
+                <div className="text-sm text-gray-400 mt-1">Total Requests (30d)</div>
+              </div>
+              <div className="bg-dark-800 rounded-xl p-5">
+                <div className="text-2xl font-bold text-green-400">{totalGranted}</div>
+                <div className="text-sm text-gray-400 mt-1">Granted</div>
+              </div>
+              <div className="bg-dark-800 rounded-xl p-5">
+                <div className="text-2xl font-bold text-red-400">{totalBlocked}</div>
+                <div className="text-sm text-gray-400 mt-1">Blocked</div>
+              </div>
+              <div className="bg-dark-800 rounded-xl p-5">
+                <div className="text-2xl font-bold text-shield-400">{activeAgreements}</div>
+                <div className="text-sm text-gray-400 mt-1">Active Agreements</div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-1 mb-6 bg-dark-800 rounded-lg p-1">
+              {tabs.map(t => (
+                <button key={t.id} onClick={() => setActiveTab(t.id)} className={`px-4 py-2 rounded-md text-sm font-medium transition ${activeTab === t.id ? "bg-shield-400 text-white" : "text-gray-400 hover:text-white"}`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab content */}
+            {activeTab === "overview" && (
+              <div className="space-y-6">
+                <div className="bg-dark-800 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">Recent Agent Activity</h3>
+                  {(data.recent_access || []).length === 0 ? (
+                    <p className="text-gray-400 text-sm">No agent activity recorded yet. Once agents visit your site, you will see their access attempts here.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(data.recent_access || []).slice(0, 15).map((a, i) => (
+                        <div key={i} className="flex items-center justify-between bg-dark-900 rounded-lg px-4 py-3 text-sm">
+                          <div className="flex items-center gap-3">
+                            <span className={`w-2 h-2 rounded-full ${a.access_granted ? "bg-green-400" : "bg-red-400"}`} />
+                            <span className="text-white">{a.agent_name || a.agent_key?.slice(0, 12) || "Unknown"}</span>
+                            <span className="text-gray-500">{a.request_path}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {!a.access_granted && <span className="text-red-400 text-xs">{a.denial_reason}</span>}
+                            <span className="text-gray-500 text-xs">{new Date(a.accessed_at).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "agreements" && (
+              <div className="bg-dark-800 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Agent Agreements</h3>
+                {(data.agreements || []).length === 0 ? (
+                  <p className="text-gray-400 text-sm">No agreements signed yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(data.agreements || []).map((a, i) => (
+                      <div key={i} className="flex items-center justify-between bg-dark-900 rounded-lg px-4 py-3 text-sm">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-2 h-2 rounded-full ${a.revoked ? "bg-red-400" : "bg-green-400"}`} />
+                          <span className="text-white font-medium">{a.agent_name || "Unknown Agent"}</span>
+                          <span className="text-gray-500 font-mono text-xs">{a.agent_key?.slice(0, 16)}...</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-gray-400 text-xs">v{a.terms_version}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded ${a.revoked ? "bg-red-900 text-red-300" : "bg-green-900 text-green-300"}`}>
+                            {a.revoked ? "Revoked" : "Active"}
+                          </span>
+                          <span className="text-gray-500 text-xs">{new Date(a.accepted_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "access" && (
+              <div className="bg-dark-800 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Full Access Log</h3>
+                <div className="space-y-2">
+                  {(data.recent_access || []).map((a, i) => (
+                    <div key={i} className="flex items-center justify-between bg-dark-900 rounded-lg px-4 py-3 text-sm">
+                      <div className="flex items-center gap-3">
+                        <span className={`w-2 h-2 rounded-full ${a.access_granted ? "bg-green-400" : "bg-red-400"}`} />
+                        <span className="text-white">{a.agent_name || "Anonymous"}</span>
+                        <span className="text-gray-500 font-mono text-xs">{a.request_path}</span>
+                      </div>
+                      <div className="text-gray-500 text-xs">{new Date(a.accessed_at).toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "violations" && (
+              <div className="bg-dark-800 rounded-xl p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Open Violations</h3>
+                {(data.open_violations || []).length === 0 ? (
+                  <p className="text-gray-400 text-sm">No violations reported. That is a good sign.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(data.open_violations || []).map((v, i) => (
+                      <div key={i} className="bg-dark-900 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-red-400 font-medium text-sm">{v.violation_type.replace(/_/g, " ")}</span>
+                          <span className="text-gray-500 text-xs">{new Date(v.reported_at).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-gray-400 text-sm">{v.description || "No details provided."}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "setup" && (
+              <div className="space-y-6">
+                <div className="bg-dark-800 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-white mb-3">Your Site Key</h3>
+                  <code className="bg-dark-900 px-4 py-2 rounded-lg text-shield-400 text-sm block">{siteKey}</code>
+                </div>
+                <div className="bg-dark-800 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-white mb-3">Embed Snippet</h3>
+                  <pre className="bg-dark-900 rounded-lg p-4 text-sm text-green-400 overflow-x-auto">{`<script src="https://cdn.agentpedia.io/shield.js"\n        data-site-key="${siteKey}"\n        data-mode="enforce">\n<\/script>`}</pre>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ---- App Root ----
+    function App() {
+      const [screen, setScreen] = useState("setup");
+      const [onboardData, setOnboardData] = useState(null);
+      const [creds, setCreds] = useState({ key: "", secret: "" });
+
+      function handleSetup(data) {
+        setOnboardData(data);
+        setScreen("onboarding");
+      }
+
+      function handleLogin(key, secret) {
+        setCreds({ key, secret });
+        setScreen("dashboard");
+      }
+
+      function handleOnboardContinue(key, secret) {
+        setCreds({ key, secret });
+        setScreen("dashboard");
+      }
+
+      if (screen === "setup") return <SetupScreen onSetup={handleSetup} onLogin={handleLogin} />;
+      if (screen === "onboarding") return <OnboardingScreen data={onboardData} onContinue={handleOnboardContinue} />;
+      return <Dashboard siteKey={creds.key} siteSecret={creds.secret} />;
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
