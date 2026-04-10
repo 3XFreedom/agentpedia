@@ -5,7 +5,7 @@
  * Agents without valid agreements will see a terms gate instead of your content.
  *
  * Usage:
- *   <script src="https://agentpedia.io/shield.js"
+ *   <script src="https://cdn.agentpedia.io/shield.js"
  *           data-site-key="sk_your_key_here"
  *           data-mode="enforce">
  *   </script>

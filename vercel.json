@@ -17,6 +17,10 @@
       "dest": "/.well-known/$1"
     },
     {
+      "src": "/shield$",
+      "dest": "/shield.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
