@@ -1,510 +1,535 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="AgentPedia Shield - Protect your website content from unauthorized AI agent crawling. Set terms of service for AI agents in minutes.">
-  <title>AgentPedia Shield - AI Content Protection</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='24' font-size='24'>🛡️</text></svg>">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            shield: { 50: '#f0f0ff', 100: '#e0e0ff', 200: '#c4b5fd', 400: '#6c63ff', 500: '#5b54e6', 600: '#4a45c0', 900: '#13132b' },
-            dark: { 800: '#1a1a2e', 900: '#0f0f23' }
-          }
-        }
-      }
-    };
-  </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentPedia Shield - Protect Your Site From AI Crawlers</title>
+    <meta name="description" content="Set terms of service that AI agents must agree to before accessing your site. Email/password or Google sign-in, no coding required.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='24' font-size='24' fill='%2306b6d4'>P</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { margin: 0; padding: 0; background-color: #09090b; }
+        .step-active { border-color: #06b6d4 !important; background-color: rgba(6,182,212,0.08); }
+    </style>
 </head>
-<body class="bg-dark-900 text-gray-200 min-h-screen">
-  <div id="root"></div>
-  <script type="text/babel">
-    const { useState, useEffect, useCallback } = React;
-    const SHIELD_API = "https://mcgnqvqswdjzoxauanzf.supabase.co/functions/v1/shield";
+<body class="bg-slate-950 text-slate-50">
 
-    const ShieldIcon = ({ size = 24 }) => (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-shield-400">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-      </svg>
-    );
-
-    /* ───── Navigation ───── */
-    function Nav({ siteDomain, onLogout }) {
-      return (
-        <nav className="sticky top-0 z-50 bg-slate-950/95 backdrop-blur border-b border-slate-800 px-6 py-4">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <a href="/" className="text-2xl font-bold text-cyan-400 hover:text-cyan-300 transition">AgentPedia</a>
-              {siteDomain && <span className="text-sm text-gray-500 ml-2">| {siteDomain}</span>}
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-50 bg-slate-950/95 backdrop-blur border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="/" class="text-2xl font-bold text-cyan-400">AgentPedia</a>
+            <div class="space-x-6 hidden md:flex items-center">
+                <a href="/agents" class="hover:text-cyan-400 transition font-semibold">Agents</a>
+                <a href="/shield" class="hover:text-cyan-400 transition font-semibold">Shield</a>
+                <a href="/submit" class="hover:text-cyan-400 transition font-semibold">Submit</a>
+                <a href="https://github.com/3xfreedom/agentpedia" class="hover:text-cyan-400 transition">GitHub</a>
+                <button id="nav-logout" class="hidden bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded text-sm">Sign out</button>
             </div>
-            <div className="flex items-center gap-6">
-              <div className="space-x-6 hidden md:flex items-center">
-                <a href="/agents" className="hover:text-cyan-400 transition font-semibold text-gray-300">Agents</a>
-                <a href="/shield" className="text-cyan-400 font-semibold">Shield</a>
-                <a href="/submit" className="hover:text-cyan-400 transition font-semibold text-gray-300">Submit</a>
-                <a href="https://github.com/3xfreedom/agentpedia" className="hover:text-cyan-400 transition text-gray-300">GitHub</a>
-              </div>
-              {onLogout && <button onClick={onLogout} className="text-sm text-gray-400 hover:text-red-400 transition">Log out</button>}
-            </div>
-          </div>
-        </nav>
-      );
-    }
-
-    /* ───── Setup / Auth Screen ───── */
-    function SetupScreen({ onSetup, onLogin }) {
-      const [tab, setTab] = useState("register");
-      const [email, setEmail] = useState("");
-      const [domain, setDomain] = useState("");
-      const [siteName, setSiteName] = useState("");
-      const [siteKey, setSiteKey] = useState("");
-      const [siteSecret, setSiteSecret] = useState("");
-      const [loading, setLoading] = useState(false);
-      const [error, setError] = useState("");
-
-      async function handleRegister(e) {
-        e.preventDefault();
-        setLoading(true);
-        setError("");
-        try {
-          const res = await fetch(SHIELD_API + "/register", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, site_domain: domain, site_name: siteName || domain }),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "Registration failed");
-          onSetup(data);
-        } catch (err) {
-          setError(err.message);
-        }
-        setLoading(false);
-      }
-
-      function handleLogin(e) {
-        e.preventDefault();
-        if (siteKey && siteSecret) onLogin(siteKey, siteSecret);
-      }
-
-      return (
-        <div className="min-h-screen">
-          <Nav />
-          {/* Hero */}
-          <div className="bg-gradient-to-br from-shield-600 via-shield-400 to-indigo-500 py-16 text-center">
-            <div className="max-w-3xl mx-auto px-6">
-              <ShieldIcon size={48} />
-              <h1 className="text-4xl md:text-5xl font-bold text-white mt-4 mb-4">Protect Your Content from AI Agents</h1>
-              <p className="text-lg text-indigo-100 mb-2">Set terms of service for AI crawlers in minutes. No coding required.</p>
-            </div>
-          </div>
-
-          {/* How it works */}
-          <div className="max-w-5xl mx-auto px-6 py-16">
-            <h2 className="text-2xl font-bold text-white text-center mb-10">How It Works</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-              <div className="text-center">
-                <div className="w-12 h-12 rounded-full bg-shield-400 text-white text-xl font-bold flex items-center justify-center mx-auto mb-4">1</div>
-                <h3 className="text-lg font-semibold text-white mb-2">Register Your Site</h3>
-                <p className="text-gray-400 text-sm">Enter your domain and email. You get a site key and secret instantly.</p>
-              </div>
-              <div className="text-center">
-                <div className="w-12 h-12 rounded-full bg-shield-400 text-white text-xl font-bold flex items-center justify-center mx-auto mb-4">2</div>
-                <h3 className="text-lg font-semibold text-white mb-2">Add One Line of Code</h3>
-                <p className="text-gray-400 text-sm">Copy-paste a single script tag into your website. That's it.</p>
-              </div>
-              <div className="text-center">
-                <div className="w-12 h-12 rounded-full bg-shield-400 text-white text-xl font-bold flex items-center justify-center mx-auto mb-4">3</div>
-                <h3 className="text-lg font-semibold text-white mb-2">AI Agents Must Agree</h3>
-                <p className="text-gray-400 text-sm">Agents see your terms before crawling. Access is logged with watermarks.</p>
-              </div>
-            </div>
-
-            {/* Register / Login form */}
-            <div className="max-w-lg mx-auto">
-              <div className="flex gap-2 mb-6">
-                <button onClick={() => setTab("register")} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${tab === "register" ? "bg-shield-400 text-white" : "bg-dark-800 text-gray-400 hover:text-white"}`}>
-                  Register New Site
-                </button>
-                <button onClick={() => setTab("login")} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition ${tab === "login" ? "bg-shield-400 text-white" : "bg-dark-800 text-gray-400 hover:text-white"}`}>
-                  Existing Site Login
-                </button>
-              </div>
-
-              {tab === "register" ? (
-                <form onSubmit={handleRegister} className="bg-dark-800 rounded-xl p-6 space-y-4 border border-gray-800">
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Email</label>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                      className="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-shield-400 focus:outline-none"
-                      placeholder="you@example.com" />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Your Website Domain</label>
-                    <input type="text" value={domain} onChange={e => setDomain(e.target.value)} required
-                      className="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-shield-400 focus:outline-none"
-                      placeholder="example.com" />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Site Name (optional)</label>
-                    <input type="text" value={siteName} onChange={e => setSiteName(e.target.value)}
-                      className="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:border-shield-400 focus:outline-none"
-                      placeholder="My Awesome Blog" />
-                  </div>
-                  {error && <p className="text-red-400 text-sm">{error}</p>}
-                  <button type="submit" disabled={loading}
-                    className="w-full bg-shield-400 hover:bg-shield-500 text-white font-semibold py-3 rounded-lg transition disabled:opacity-50">
-                    {loading ? "Registering..." : "Protect My Site (Free)"}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handleLogin} className="bg-dark-800 rounded-xl p-6 space-y-4 border border-gray-800">
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Site Key</label>
-                    <input type="text" value={siteKey} onChange={e => setSiteKey(e.target.value)} required
-                      className="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white font-mono text-sm focus:border-shield-400 focus:outline-none"
-                      placeholder="sk_..." />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Site Secret</label>
-                    <input type="password" value={siteSecret} onChange={e => setSiteSecret(e.target.value)} required
-                      className="w-full bg-dark-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white font-mono text-sm focus:border-shield-400 focus:outline-none"
-                      placeholder="ss_..." />
-                  </div>
-                  <button type="submit" className="w-full bg-shield-400 hover:bg-shield-500 text-white font-semibold py-3 rounded-lg transition">
-                    View My Dashboard
-                  </button>
-                </form>
-              )}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <footer className="border-t border-gray-800 py-8 text-center text-gray-500 text-sm">
-            Part of the <a href="/" className="text-shield-400 hover:underline">AgentPedia</a> ecosystem.
-            Copyright 2026 - 3xFreedom.
-          </footer>
         </div>
-      );
-    }
+    </nav>
 
-    /* ───── Onboarding (after registration) ───── */
-    function OnboardingScreen({ data, onContinue }) {
-      const [copied, setCopied] = useState("");
+    <!-- LOGGED OUT: Landing + Auth -->
+    <section id="landing-view" class="hidden">
+        <div class="bg-gradient-to-br from-indigo-900 via-slate-950 to-purple-900 py-16">
+            <div class="max-w-6xl mx-auto px-6">
+                <div class="grid md:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <div class="text-5xl mb-4">&#x1F6E1;&#xFE0F;</div>
+                        <h1 class="text-5xl font-bold mb-4">AgentPedia Shield</h1>
+                        <p class="text-xl text-slate-300 mb-6">Protect your website content from unauthorized AI crawling. Set terms AI agents must agree to, watermark every access, and see exactly which agents visit your site.</p>
+                        <ul class="space-y-3 text-slate-200 mb-8">
+                            <li class="flex items-start gap-3"><span class="text-cyan-400 text-xl leading-none">&#x2713;</span><span>No coding required &mdash; build your terms with a friendly quiz</span></li>
+                            <li class="flex items-start gap-3"><span class="text-cyan-400 text-xl leading-none">&#x2713;</span><span>Update your terms in real time, no redeploy</span></li>
+                            <li class="flex items-start gap-3"><span class="text-cyan-400 text-xl leading-none">&#x2713;</span><span>Watermarked agreements for attribution and audit</span></li>
+                            <li class="flex items-start gap-3"><span class="text-cyan-400 text-xl leading-none">&#x2713;</span><span>Free forever for up to 10k agent requests / month</span></li>
+                        </ul>
+                    </div>
 
-      function copy(text, label) {
-        navigator.clipboard.writeText(text);
-        setCopied(label);
-        setTimeout(() => setCopied(""), 2000);
-      }
+                    <!-- Auth Card -->
+                    <div id="auth-card" class="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-2xl">
+                        <div class="flex border-b border-slate-800 mb-6">
+                            <button id="tab-signin" class="flex-1 py-3 font-semibold border-b-2 border-cyan-400 text-cyan-400">Sign in</button>
+                            <button id="tab-signup" class="flex-1 py-3 font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200">Create account</button>
+                        </div>
 
-      const snippetCode = `<script src="https://agentpedia.io/shield.js"
-        data-site-key="${data.site_key}"
-        data-mode="enforce">
-<\/script>`;
+                        <button id="google-btn" class="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-100 text-slate-900 font-semibold py-3 rounded-lg transition mb-4">
+                            <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571.001-.001.002-.001.003-.002l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+                            Continue with Google
+                        </button>
 
-      return (
-        <div className="min-h-screen">
-          <Nav />
-          <div className="max-w-2xl mx-auto px-6 py-12">
-            <div className="text-center mb-10">
-              <div className="text-5xl mb-4">&#x2705;</div>
-              <h2 className="text-3xl font-bold text-white mb-2">Your Site is Registered!</h2>
-              <p className="text-gray-400 text-lg">{data.site_domain} is now protected by AgentPedia Shield</p>
+                        <div class="relative my-4">
+                            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-700"></div></div>
+                            <div class="relative flex justify-center text-xs"><span class="bg-slate-900 px-3 text-slate-500">or with email</span></div>
+                        </div>
+
+                        <form id="auth-form" class="space-y-4">
+                            <input type="email" id="auth-email" placeholder="you@example.com" required class="w-full bg-slate-800 border border-slate-700 rounded px-4 py-2.5 focus:outline-none focus:border-cyan-400">
+                            <input type="password" id="auth-password" placeholder="Password (min 8 chars)" required minlength="8" class="w-full bg-slate-800 border border-slate-700 rounded px-4 py-2.5 focus:outline-none focus:border-cyan-400">
+                            <button type="submit" id="auth-submit" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold py-3 rounded transition">Sign in</button>
+                        </form>
+
+                        <div id="auth-status" class="text-sm mt-4 text-center"></div>
+                    </div>
+                </div>
             </div>
-
-            <div className="space-y-6">
-              {/* Credentials */}
-              <div className="bg-dark-800 rounded-xl p-6 border border-gray-800">
-                <h3 className="text-lg font-semibold text-white mb-2">Save Your Credentials</h3>
-                <p className="text-gray-400 text-sm mb-4">You will need these to access your dashboard later. Store them somewhere safe.</p>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between bg-dark-900 rounded-lg px-4 py-3">
-                    <div><span className="text-gray-400 text-sm">Site Key: </span><span className="font-mono text-shield-400 text-sm">{data.site_key}</span></div>
-                    <button onClick={() => copy(data.site_key, "key")} className="text-xs bg-dark-800 text-gray-400 hover:text-white px-3 py-1 rounded border border-gray-700">
-                      {copied === "key" ? "Copied!" : "Copy"}
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between bg-dark-900 rounded-lg px-4 py-3">
-                    <div><span className="text-gray-400 text-sm">Site Secret: </span><span className="font-mono text-shield-400 text-sm">{data.site_secret}</span></div>
-                    <button onClick={() => copy(data.site_secret, "secret")} className="text-xs bg-dark-800 text-gray-400 hover:text-white px-3 py-1 rounded border border-gray-700">
-                      {copied === "secret" ? "Copied!" : "Copy"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Snippet */}
-              <div className="bg-dark-800 rounded-xl p-6 border border-gray-800">
-                <h3 className="text-lg font-semibold text-white mb-2">Add This to Your Website</h3>
-                <p className="text-gray-400 text-sm mb-4">
-                  Paste this single line into your HTML, just before the closing <code className="text-shield-200">&lt;/body&gt;</code> tag.
-                  That's the only technical step — everything else is automatic.
-                </p>
-                <div className="relative">
-                  <pre className="bg-dark-900 rounded-lg p-4 text-sm text-green-400 overflow-x-auto border border-gray-700">{snippetCode}</pre>
-                  <button onClick={() => copy(snippetCode, "snippet")}
-                    className="absolute top-2 right-2 text-xs bg-dark-800 text-gray-400 hover:text-white px-3 py-1 rounded border border-gray-700">
-                    {copied === "snippet" ? "Copied!" : "Copy Code"}
-                  </button>
-                </div>
-              </div>
-
-              {/* What happens next */}
-              <div className="bg-dark-800 rounded-xl p-6 border border-gray-800">
-                <h3 className="text-lg font-semibold text-white mb-3">What Happens Next?</h3>
-                <div className="space-y-3 text-sm text-gray-400">
-                  <div className="flex gap-3">
-                    <span className="text-shield-400 font-bold">1.</span>
-                    <span>When an AI agent visits your site, Shield detects it automatically.</span>
-                  </div>
-                  <div className="flex gap-3">
-                    <span className="text-shield-400 font-bold">2.</span>
-                    <span>The agent is shown your terms of service and must agree before accessing content.</span>
-                  </div>
-                  <div className="flex gap-3">
-                    <span className="text-shield-400 font-bold">3.</span>
-                    <span>Every access is logged with a unique watermark for attribution tracking.</span>
-                  </div>
-                  <div className="flex gap-3">
-                    <span className="text-shield-400 font-bold">4.</span>
-                    <span>You can monitor everything from your dashboard.</span>
-                  </div>
-                </div>
-              </div>
-
-              <button onClick={() => onContinue(data.site_key, data.site_secret)}
-                className="w-full bg-shield-400 hover:bg-shield-500 text-white font-semibold py-3.5 rounded-lg transition text-lg">
-                Go to My Dashboard
-              </button>
-            </div>
-          </div>
         </div>
-      );
-    }
 
-    /* ───── Dashboard ───── */
-    function Dashboard({ siteKey, siteSecret, onLogout }) {
-      const [data, setData] = useState(null);
-      const [loading, setLoading] = useState(true);
-      const [activeTab, setActiveTab] = useState("overview");
-      const [copied, setCopied] = useState("");
-
-      function copy(text, label) {
-        navigator.clipboard.writeText(text);
-        setCopied(label);
-        setTimeout(() => setCopied(""), 2000);
-      }
-
-      const fetchDashboard = useCallback(async () => {
-        try {
-          const res = await fetch(SHIELD_API + "/dashboard", {
-            headers: { "x-site-key": siteKey, "x-site-secret": siteSecret },
-          });
-          if (!res.ok) throw new Error("Failed to load dashboard");
-          const d = await res.json();
-          setData(d);
-        } catch (err) {
-          console.error(err);
-        }
-        setLoading(false);
-      }, [siteKey, siteSecret]);
-
-      useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
-
-      if (loading) {
-        return (
-          <div className="min-h-screen">
-            <Nav />
-            <div className="flex items-center justify-center py-32">
-              <div className="text-gray-400 text-lg">Loading your dashboard...</div>
-            </div>
-          </div>
-        );
-      }
-
-      if (!data) {
-        return (
-          <div className="min-h-screen">
-            <Nav onLogout={onLogout} />
-            <div className="flex flex-col items-center justify-center py-32 gap-4">
-              <div className="text-red-400 text-lg">Could not load dashboard. Check your credentials.</div>
-              <button onClick={onLogout} className="bg-dark-800 text-gray-300 px-6 py-2 rounded-lg hover:bg-dark-800/80">Try Again</button>
-            </div>
-          </div>
-        );
-      }
-
-      const snippetCode = `<script src="https://agentpedia.io/shield.js"
-        data-site-key="${siteKey}"
-        data-mode="enforce">
-<\/script>`;
-
-      const tabs = [
-        { id: "overview", label: "Overview" },
-        { id: "access", label: "Access Log" },
-        { id: "setup", label: "Setup Code" },
-      ];
-
-      return (
-        <div className="min-h-screen">
-          <Nav siteDomain={data.site_domain} onLogout={onLogout} />
-          <div className="max-w-6xl mx-auto px-6 py-8">
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-              <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
-                <div className="text-3xl font-bold text-white">{data.recent_access_logs_count || 0}</div>
-                <div className="text-sm text-gray-400 mt-1">Requests (7 days)</div>
-              </div>
-              <div className="bg-dark-800 rounded-xl p-5 border border-gray-800">
-                <div className="text-3xl font-bold text-shield-400">{data.total_agreements || 0}</div>
-                <div className="text-sm text-gray-400 mt-1">Active Agreements</div>
-              </div>
-              <div className="bg-dark-800 rounded-xl p-5 border border-gray-800 col-span-2 md:col-span-1">
-                <div className="text-3xl font-bold text-green-400">{data.site_name}</div>
-                <div className="text-sm text-gray-400 mt-1">{data.site_domain}</div>
-              </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex gap-1 mb-6 bg-dark-800 rounded-lg p-1 border border-gray-800">
-              {tabs.map(t => (
-                <button key={t.id} onClick={() => setActiveTab(t.id)}
-                  className={`px-5 py-2.5 rounded-md text-sm font-medium transition ${activeTab === t.id ? "bg-shield-400 text-white" : "text-gray-400 hover:text-white"}`}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Overview */}
-            {activeTab === "overview" && (
-              <div className="bg-dark-800 rounded-xl p-6 border border-gray-800">
-                <h3 className="text-lg font-semibold text-white mb-4">Recent Agent Activity</h3>
-                {(data.recent_access_logs || []).length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="text-4xl mb-3">&#x1F6E1;&#xFE0F;</div>
-                    <p className="text-gray-400">No agent activity yet.</p>
-                    <p className="text-gray-500 text-sm mt-1">Once AI agents visit your site, their access attempts will appear here.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {(data.recent_access_logs || []).map((a, i) => (
-                      <div key={i} className="flex items-center justify-between bg-dark-900 rounded-lg px-4 py-3 text-sm">
-                        <div className="flex items-center gap-3">
-                          <span className={`w-2.5 h-2.5 rounded-full ${a.access_granted ? "bg-green-400" : "bg-red-400"}`} />
-                          <span className="text-gray-300 font-mono text-xs">{a.request_path}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className={`text-xs px-2 py-0.5 rounded ${a.access_granted ? "bg-green-900 text-green-300" : "bg-red-900 text-red-300"}`}>
-                            {a.access_granted ? "Granted" : "Denied"}
-                          </span>
-                          <span className="text-gray-500 text-xs">{new Date(a.accessed_at).toLocaleString()}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Access Log */}
-            {activeTab === "access" && (
-              <div className="bg-dark-800 rounded-xl p-6 border border-gray-800">
-                <h3 className="text-lg font-semibold text-white mb-4">Full Access Log</h3>
-                {(data.recent_access_logs || []).length === 0 ? (
-                  <p className="text-gray-400 text-sm py-8 text-center">No access logs yet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {(data.recent_access_logs || []).map((a, i) => (
-                      <div key={i} className="flex items-center justify-between bg-dark-900 rounded-lg px-4 py-3 text-sm">
-                        <div className="flex items-center gap-3">
-                          <span className={`w-2.5 h-2.5 rounded-full ${a.access_granted ? "bg-green-400" : "bg-red-400"}`} />
-                          <span className="text-white">{a.request_path}</span>
-                        </div>
-                        <span className="text-gray-500 text-xs">{new Date(a.accessed_at).toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Setup */}
-            {activeTab === "setup" && (
-              <div className="space-y-6">
-                <div className="bg-dark-800 rounded-xl p-6 border border-gray-800">
-                  <h3 className="text-lg font-semibold text-white mb-2">Your Site Key</h3>
-                  <div className="flex items-center justify-between bg-dark-900 rounded-lg px-4 py-3">
-                    <code className="text-shield-400 text-sm font-mono">{siteKey}</code>
-                    <button onClick={() => copy(siteKey, "key")} className="text-xs text-gray-400 hover:text-white px-3 py-1 rounded border border-gray-700">
-                      {copied === "key" ? "Copied!" : "Copy"}
-                    </button>
-                  </div>
+        <div class="max-w-6xl mx-auto px-6 py-16">
+            <h2 class="text-3xl font-bold mb-10 text-center">How it works</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+                    <div class="text-2xl font-bold text-cyan-400 mb-2">1.</div>
+                    <h3 class="font-bold text-lg mb-2">Register your site</h3>
+                    <p class="text-slate-400 text-sm">Sign in, add your domain. Takes 30 seconds.</p>
                 </div>
-                <div className="bg-dark-800 rounded-xl p-6 border border-gray-800">
-                  <h3 className="text-lg font-semibold text-white mb-2">Embed Snippet</h3>
-                  <p className="text-gray-400 text-sm mb-4">Add this to your site's HTML, just before the closing &lt;/body&gt; tag:</p>
-                  <div className="relative">
-                    <pre className="bg-dark-900 rounded-lg p-4 text-sm text-green-400 overflow-x-auto border border-gray-700">{snippetCode}</pre>
-                    <button onClick={() => copy(snippetCode, "snippet")}
-                      className="absolute top-2 right-2 text-xs bg-dark-800 text-gray-400 hover:text-white px-3 py-1 rounded border border-gray-700">
-                      {copied === "snippet" ? "Copied!" : "Copy Code"}
-                    </button>
-                  </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+                    <div class="text-2xl font-bold text-cyan-400 mb-2">2.</div>
+                    <h3 class="font-bold text-lg mb-2">Build your terms</h3>
+                    <p class="text-slate-400 text-sm">Answer a few friendly questions. We generate terms AI agents can parse.</p>
                 </div>
-              </div>
-            )}
-          </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+                    <div class="text-2xl font-bold text-cyan-400 mb-2">3.</div>
+                    <h3 class="font-bold text-lg mb-2">Drop in the snippet</h3>
+                    <p class="text-slate-400 text-sm">One line of code. Agents see the terms before they crawl.</p>
+                </div>
+            </div>
         </div>
-      );
-    }
+    </section>
 
-    /* ───── App Root ───── */
-    function App() {
-      const [screen, setScreen] = useState("setup");
-      const [onboardData, setOnboardData] = useState(null);
-      const [creds, setCreds] = useState({ key: "", secret: "" });
+    <!-- LOGGED IN: Dashboard -->
+    <section id="dashboard-view" class="hidden max-w-6xl mx-auto px-6 py-12">
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-3xl font-bold">Shield Dashboard</h1>
+                <p class="text-slate-400 text-sm mt-1" id="user-email"></p>
+            </div>
+            <button id="add-site-btn" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold px-5 py-2.5 rounded">+ Add a site</button>
+        </div>
 
-      // Check for saved creds in URL hash
-      useEffect(() => {
-        const hash = window.location.hash;
-        if (hash.startsWith("#dashboard:")) {
-          const parts = hash.substring(11).split(":");
-          if (parts.length === 2) {
-            setCreds({ key: parts[0], secret: parts[1] });
-            setScreen("dashboard");
-          }
+        <div id="sites-list" class="space-y-4">
+            <div class="text-slate-500 text-center py-12">Loading your sites...</div>
+        </div>
+    </section>
+
+    <!-- Add Site Modal -->
+    <div id="site-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-lg max-w-md w-full p-6">
+            <h3 class="text-xl font-bold mb-4">Register a new site</h3>
+            <form id="site-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Site name</label>
+                    <input type="text" id="site-name" required placeholder="My Awesome Blog" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 focus:outline-none focus:border-cyan-400">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Domain</label>
+                    <input type="text" id="site-domain" required placeholder="example.com" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 focus:outline-none focus:border-cyan-400">
+                    <p class="text-xs text-slate-500 mt-1">Just the domain, no https:// or paths.</p>
+                </div>
+                <div id="site-error" class="text-red-400 text-sm"></div>
+                <div class="flex gap-3 pt-2">
+                    <button type="button" id="site-cancel" class="flex-1 bg-slate-800 hover:bg-slate-700 py-2 rounded">Cancel</button>
+                    <button type="submit" class="flex-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold py-2 rounded">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Terms Quiz Modal -->
+    <div id="quiz-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-slate-900 border border-slate-700 rounded-lg max-w-5xl w-full my-8">
+            <div class="flex items-center justify-between p-6 border-b border-slate-800">
+                <div>
+                    <h3 class="text-xl font-bold">Terms Builder</h3>
+                    <p class="text-sm text-slate-400" id="quiz-site-name"></p>
+                </div>
+                <button id="quiz-close" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">&times;</button>
+            </div>
+            <div class="grid md:grid-cols-2 gap-6 p-6">
+                <!-- Quiz -->
+                <div class="space-y-6">
+                    <!-- Step 1: Access level -->
+                    <div class="border border-slate-800 rounded-lg p-4">
+                        <div class="text-sm font-semibold text-cyan-400 mb-3">1. How much access do agents get by default?</div>
+                        <div class="space-y-2" id="q-access">
+                            <label class="flex items-start gap-3 p-3 border border-slate-800 rounded cursor-pointer hover:border-cyan-400 transition"><input type="radio" name="access" value="open" class="mt-1"><div><div class="font-semibold">Open</div><div class="text-xs text-slate-400">Agents can read any public page freely</div></div></label>
+                            <label class="flex items-start gap-3 p-3 border border-slate-800 rounded cursor-pointer hover:border-cyan-400 transition"><input type="radio" name="access" value="attribution" class="mt-1" checked><div><div class="font-semibold">Attribution required</div><div class="text-xs text-slate-400">Free to access, but must credit the source</div></div></label>
+                            <label class="flex items-start gap-3 p-3 border border-slate-800 rounded cursor-pointer hover:border-cyan-400 transition"><input type="radio" name="access" value="restricted" class="mt-1"><div><div class="font-semibold">Restricted</div><div class="text-xs text-slate-400">Agents must register and accept terms first</div></div></label>
+                            <label class="flex items-start gap-3 p-3 border border-slate-800 rounded cursor-pointer hover:border-cyan-400 transition"><input type="radio" name="access" value="closed" class="mt-1"><div><div class="font-semibold">Closed</div><div class="text-xs text-slate-400">No AI access without explicit permission</div></div></label>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Allowed uses -->
+                    <div class="border border-slate-800 rounded-lg p-4">
+                        <div class="text-sm font-semibold text-cyan-400 mb-3">2. What can agents use your content for?</div>
+                        <div class="space-y-2" id="q-allowed">
+                            <label class="flex items-center gap-3 text-sm"><input type="checkbox" value="search" checked> Search indexing</label>
+                            <label class="flex items-center gap-3 text-sm"><input type="checkbox" value="quotation" checked> Quoting with attribution</label>
+                            <label class="flex items-center gap-3 text-sm"><input type="checkbox" value="summarization" checked> Summarization</label>
+                            <label class="flex items-center gap-3 text-sm"><input type="checkbox" value="research"> Academic / non-commercial research</label>
+                            <label class="flex items-center gap-3 text-sm"><input type="checkbox" value="personal_assistant"> Personal assistant tasks (not redistributed)</label>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Prohibited uses -->
+                    <div class="border border-slate-800 rounded-lg p-4">
+                        <div class="text-sm font-semibold text-cyan-400 mb-3">3. What is explicitly prohibited?</div>
+                        <div class="space-y-2" id="q-prohibited">
+                            <label class="flex items-center gap-3 text-sm"><input type="checkbox" value="training" checked> Training large language models</label>
+                            <label class="flex items-center gap-3 text-sm"><input type="checkbox" value="republication" checked> Republishing full content</label>
+                            <label class="flex items-center gap-3 text-sm"><input type="checkbox" value="commercial_resale" checked> Commercial resale</label>
+                            <label class="flex items-center gap-3 text-sm"><input type="checkbox" value="impersonation"> Impersonating my brand</label>
+                            <label class="flex items-center gap-3 text-sm"><input type="checkbox" value="bulk_scraping"> Bulk scraping (&gt;100 pages/hr)</label>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Attribution format -->
+                    <div class="border border-slate-800 rounded-lg p-4">
+                        <div class="text-sm font-semibold text-cyan-400 mb-3">4. Attribution format (if required)</div>
+                        <input type="text" id="q-attribution" value="Source: {site_name} ({site_url})" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm">
+                        <p class="text-xs text-slate-500 mt-2">Use <code>{site_name}</code>, <code>{site_url}</code>, <code>{page_title}</code>, <code>{page_url}</code>.</p>
+                    </div>
+
+                    <!-- Step 5: Rate limits -->
+                    <div class="border border-slate-800 rounded-lg p-4">
+                        <div class="text-sm font-semibold text-cyan-400 mb-3">5. Rate limit (requests / hour / agent)</div>
+                        <input type="number" id="q-ratelimit" value="100" min="1" max="100000" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm">
+                    </div>
+                </div>
+
+                <!-- Live Preview -->
+                <div class="md:sticky md:top-6 md:self-start">
+                    <div class="text-sm font-semibold text-cyan-400 mb-3">Live preview</div>
+                    <div class="bg-slate-950 border border-slate-800 rounded-lg p-5 text-sm max-h-[60vh] overflow-y-auto">
+                        <div id="terms-preview" class="text-slate-300 whitespace-pre-wrap font-mono text-xs leading-relaxed"></div>
+                    </div>
+                    <div id="quiz-status" class="text-sm mt-3"></div>
+                    <button id="quiz-save" class="w-full mt-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold py-3 rounded transition">Save terms</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+const SUPABASE_URL = 'https://mcgnqvqswdjzoxauanzf.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jZ25xdnFzd2Rqem94YXVhbnpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDQ3MDcsImV4cCI6MjA5MDM4MDcwN30.hXhFkCPpNT8mBMovRgSp8M2bP9WaBH7LbH23wWt0guw';
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = (id) => document.getElementById(id);
+
+let authMode = 'signin';
+let currentUser = null;
+let sites = [];
+let currentSite = null;
+let currentPolicy = null;
+
+// ---------- AUTH ----------
+$('tab-signin').addEventListener('click', () => setAuthMode('signin'));
+$('tab-signup').addEventListener('click', () => setAuthMode('signup'));
+
+function setAuthMode(mode) {
+    authMode = mode;
+    $('tab-signin').classList.toggle('border-cyan-400', mode === 'signin');
+    $('tab-signin').classList.toggle('text-cyan-400', mode === 'signin');
+    $('tab-signin').classList.toggle('border-transparent', mode !== 'signin');
+    $('tab-signin').classList.toggle('text-slate-400', mode !== 'signin');
+    $('tab-signup').classList.toggle('border-cyan-400', mode === 'signup');
+    $('tab-signup').classList.toggle('text-cyan-400', mode === 'signup');
+    $('tab-signup').classList.toggle('border-transparent', mode !== 'signup');
+    $('tab-signup').classList.toggle('text-slate-400', mode !== 'signup');
+    $('auth-submit').textContent = mode === 'signin' ? 'Sign in' : 'Create account';
+    $('auth-status').innerHTML = '';
+}
+
+$('auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = $('auth-email').value.trim();
+    const password = $('auth-password').value;
+    const btn = $('auth-submit');
+    btn.disabled = true;
+    btn.textContent = '...';
+    $('auth-status').innerHTML = '';
+    try {
+        if (authMode === 'signin') {
+            const { error } = await sb.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+        } else {
+            const { error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin + '/shield' } });
+            if (error) throw error;
+            $('auth-status').innerHTML = '<span class="text-green-400">Check your email to confirm your account.</span>';
+            btn.disabled = false;
+            btn.textContent = 'Create account';
+            return;
         }
-      }, []);
+    } catch (err) {
+        $('auth-status').innerHTML = `<span class="text-red-400">${escapeHtml(err.message)}</span>`;
+        btn.disabled = false;
+        btn.textContent = authMode === 'signin' ? 'Sign in' : 'Create account';
+    }
+});
 
-      function handleSetup(data) {
-        setOnboardData(data);
-        setScreen("onboarding");
-      }
+$('google-btn').addEventListener('click', async () => {
+    $('auth-status').innerHTML = '';
+    try {
+        const { error } = await sb.auth.signInWithOAuth({
+            provider: 'google',
+            options: { redirectTo: window.location.origin + '/shield' }
+        });
+        if (error) throw error;
+    } catch (err) {
+        $('auth-status').innerHTML = `<span class="text-red-400">${escapeHtml(err.message)}</span>`;
+    }
+});
 
-      function handleLogin(key, secret) {
-        setCreds({ key, secret });
-        setScreen("dashboard");
-      }
+$('nav-logout').addEventListener('click', async () => {
+    await sb.auth.signOut();
+    window.location.reload();
+});
 
-      function handleLogout() {
-        setCreds({ key: "", secret: "" });
-        setScreen("setup");
-        window.location.hash = "";
-      }
+sb.auth.onAuthStateChange((_event, session) => {
+    render(session?.user || null);
+});
 
-      if (screen === "setup") return <SetupScreen onSetup={handleSetup} onLogin={handleLogin} />;
-      if (screen === "onboarding") return <OnboardingScreen data={onboardData} onContinue={handleLogin} />;
-      return <Dashboard siteKey={creds.key} siteSecret={creds.secret} onLogout={handleLogout} />;
+// ---------- RENDER ----------
+async function render(user) {
+    currentUser = user;
+    if (!user) {
+        $('landing-view').classList.remove('hidden');
+        $('dashboard-view').classList.add('hidden');
+        $('nav-logout').classList.add('hidden');
+        return;
+    }
+    $('landing-view').classList.add('hidden');
+    $('dashboard-view').classList.remove('hidden');
+    $('nav-logout').classList.remove('hidden');
+    $('user-email').textContent = user.email || '';
+    await loadSites();
+}
+
+async function loadSites() {
+    const container = $('sites-list');
+    container.innerHTML = '<div class="text-slate-500 text-center py-12">Loading your sites...</div>';
+    const { data, error } = await sb.from('shield_sites').select('*').order('created_at', { ascending: false });
+    if (error) {
+        container.innerHTML = `<div class="text-red-400 text-center py-12">Failed to load: ${escapeHtml(error.message)}</div>`;
+        return;
+    }
+    sites = data || [];
+    if (!sites.length) {
+        container.innerHTML = `
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-12 text-center">
+                <div class="text-5xl mb-4">&#x1F6E1;&#xFE0F;</div>
+                <h3 class="text-xl font-bold mb-2">No sites yet</h3>
+                <p class="text-slate-400 mb-6">Register your first site to start protecting it from unauthorized AI crawling.</p>
+                <button id="empty-add" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold px-5 py-2.5 rounded">+ Add your first site</button>
+            </div>
+        `;
+        $('empty-add').addEventListener('click', () => $('add-site-btn').click());
+        return;
+    }
+    container.innerHTML = sites.map(s => `
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-6 hover:border-cyan-700 transition">
+            <div class="flex items-start justify-between mb-4 gap-4">
+                <div class="min-w-0 flex-1">
+                    <h3 class="text-lg font-bold text-cyan-400 truncate">${escapeHtml(s.site_name)}</h3>
+                    <p class="text-sm text-slate-400 truncate">${escapeHtml(s.site_domain)}</p>
+                </div>
+                <span class="text-xs bg-slate-800 px-2 py-1 rounded ${s.verified ? 'text-green-400' : 'text-yellow-400'}">${s.verified ? 'Verified' : 'Unverified'}</span>
+            </div>
+            <div class="grid grid-cols-3 gap-3 text-xs mb-4">
+                <div class="bg-slate-950 rounded p-2"><div class="text-slate-500">Plan</div><div class="font-semibold">${escapeHtml(s.plan || 'free')}</div></div>
+                <div class="bg-slate-950 rounded p-2"><div class="text-slate-500">Default</div><div class="font-semibold">${escapeHtml(s.default_access_level || 'open')}</div></div>
+                <div class="bg-slate-950 rounded p-2"><div class="text-slate-500">This month</div><div class="font-semibold">${s.monthly_agent_requests || 0}</div></div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button data-site-id="${s.id}" class="edit-terms-btn bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold px-4 py-2 rounded text-sm">Edit terms</button>
+                <button data-site-id="${s.id}" class="copy-snippet-btn bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded text-sm">Copy snippet</button>
+            </div>
+        </div>
+    `).join('');
+    container.querySelectorAll('.edit-terms-btn').forEach(b => b.addEventListener('click', () => openQuiz(b.dataset.siteId)));
+    container.querySelectorAll('.copy-snippet-btn').forEach(b => b.addEventListener('click', () => copySnippet(b.dataset.siteId)));
+}
+
+// ---------- ADD SITE ----------
+$('add-site-btn').addEventListener('click', () => {
+    $('site-name').value = '';
+    $('site-domain').value = '';
+    $('site-error').textContent = '';
+    $('site-modal').classList.remove('hidden');
+});
+$('site-cancel').addEventListener('click', () => $('site-modal').classList.add('hidden'));
+
+$('site-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('site-name').value.trim();
+    const domain = $('site-domain').value.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    $('site-error').textContent = '';
+    try {
+        const verifyToken = 'shield-verify-' + Math.random().toString(36).slice(2, 10);
+        const siteKey = 'sh_' + crypto.randomUUID().replace(/-/g, '').slice(0, 24);
+        const { data, error } = await sb.from('shield_sites').insert({
+            user_id: currentUser.id,
+            site_name: name,
+            site_domain: domain,
+            owner_email: currentUser.email,
+            owner_name: currentUser.email?.split('@')[0] || null,
+            site_key: siteKey,
+            site_secret: 'shs_' + crypto.randomUUID().replace(/-/g, ''),
+            plan: 'free',
+            verified: false,
+            verification_token: verifyToken,
+            default_access_level: 'attribution',
+            agent_registration_required: false,
+            monthly_agent_requests: 0,
+        }).select().single();
+        if (error) throw error;
+        $('site-modal').classList.add('hidden');
+        await loadSites();
+        openQuiz(data.id);
+    } catch (err) {
+        $('site-error').textContent = err.message;
+    }
+});
+
+// ---------- TERMS QUIZ ----------
+async function openQuiz(siteId) {
+    currentSite = sites.find(s => s.id === siteId);
+    if (!currentSite) return;
+    $('quiz-site-name').textContent = currentSite.site_name + ' (' + currentSite.site_domain + ')';
+
+    // Load existing policy if any
+    const { data } = await sb.from('shield_policies').select('*').eq('site_id', siteId).eq('path_pattern', '/*').maybeSingle();
+    currentPolicy = data;
+
+    if (data) {
+        document.querySelectorAll('#q-access input').forEach(i => i.checked = i.value === data.access_level);
+        document.querySelectorAll('#q-allowed input').forEach(i => i.checked = (data.allowed_uses || []).includes(i.value));
+        document.querySelectorAll('#q-prohibited input').forEach(i => i.checked = (data.prohibited_uses || []).includes(i.value));
+        $('q-attribution').value = data.attribution_format || 'Source: {site_name} ({site_url})';
+        $('q-ratelimit').value = data.rate_limit_per_hour || 100;
     }
 
-    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
-  </script>
+    updatePreview();
+    $('quiz-status').innerHTML = '';
+    $('quiz-modal').classList.remove('hidden');
+}
+
+$('quiz-close').addEventListener('click', () => $('quiz-modal').classList.add('hidden'));
+
+function collectQuizAnswers() {
+    const access = document.querySelector('#q-access input:checked')?.value || 'attribution';
+    const allowed = [...document.querySelectorAll('#q-allowed input:checked')].map(i => i.value);
+    const prohibited = [...document.querySelectorAll('#q-prohibited input:checked')].map(i => i.value);
+    const attribution = $('q-attribution').value;
+    const rateLimit = +$('q-ratelimit').value || 100;
+    return { access, allowed, prohibited, attribution, rateLimit };
+}
+
+function generateTerms(a) {
+    const siteName = currentSite?.site_name || 'This site';
+    const domain = currentSite?.site_domain || 'example.com';
+    const accessLabels = {
+        open: 'OPEN - agents may freely access public pages',
+        attribution: 'ATTRIBUTION REQUIRED - free to access with credit',
+        restricted: 'RESTRICTED - registration and agreement required',
+        closed: 'CLOSED - no AI access without explicit permission',
+    };
+    let out = `# Terms of AI Access for ${siteName}\n`;
+    out += `# Domain: ${domain}\n`;
+    out += `# Version: ${new Date().toISOString().slice(0,10)}\n\n`;
+    out += `DEFAULT_ACCESS: ${accessLabels[a.access]}\n\n`;
+    out += `ALLOWED USES:\n`;
+    if (a.allowed.length) a.allowed.forEach(u => out += `  - ${u.replace(/_/g, ' ')}\n`);
+    else out += `  (none specified)\n`;
+    out += `\nPROHIBITED USES:\n`;
+    if (a.prohibited.length) a.prohibited.forEach(u => out += `  - ${u.replace(/_/g, ' ')}\n`);
+    else out += `  (none specified)\n`;
+    out += `\nRATE LIMIT: ${a.rateLimit} requests/hour per agent\n`;
+    if (a.allowed.includes('quotation') || a.access === 'attribution') {
+        out += `\nATTRIBUTION FORMAT (required when quoting):\n  ${a.attribution}\n`;
+    }
+    out += `\nBy accessing ${domain}, your agent agrees to these terms.\n`;
+    out += `Violations may result in blocking and legal action.\n`;
+    out += `\nVerify and get machine-readable terms at:\n`;
+    out += `  https://${domain}/.well-known/ai-terms.json\n`;
+    return out;
+}
+
+function updatePreview() {
+    const a = collectQuizAnswers();
+    $('terms-preview').textContent = generateTerms(a);
+}
+
+// Wire live updates
+document.querySelectorAll('#q-access input, #q-allowed input, #q-prohibited input').forEach(i => i.addEventListener('change', updatePreview));
+$('q-attribution').addEventListener('input', updatePreview);
+$('q-ratelimit').addEventListener('input', updatePreview);
+
+$('quiz-save').addEventListener('click', async () => {
+    const a = collectQuizAnswers();
+    const termsText = generateTerms(a);
+    const btn = $('quiz-save');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    $('quiz-status').innerHTML = '';
+
+    const payload = {
+        site_id: currentSite.id,
+        policy_name: 'Default policy',
+        path_pattern: '/*',
+        access_level: a.access,
+        terms_text: termsText,
+        terms_version: new Date().toISOString().slice(0,10),
+        allowed_uses: a.allowed,
+        prohibited_uses: a.prohibited,
+        require_attribution: a.allowed.includes('quotation') || a.access === 'attribution',
+        attribution_format: a.attribution,
+        rate_limit_per_hour: a.rateLimit,
+        priority: 0,
+        active: true,
+    };
+
+    try {
+        let error;
+        if (currentPolicy) {
+            ({ error } = await sb.from('shield_policies').update(payload).eq('id', currentPolicy.id));
+        } else {
+            ({ error } = await sb.from('shield_policies').insert(payload));
+        }
+        if (error) throw error;
+        await sb.from('shield_sites').update({ default_access_level: a.access, updated_at: new Date().toISOString() }).eq('id', currentSite.id);
+        $('quiz-status').innerHTML = '<span class="text-green-400">Terms saved. Changes are live immediately.</span>';
+        await loadSites();
+    } catch (err) {
+        $('quiz-status').innerHTML = `<span class="text-red-400">${escapeHtml(err.message)}</span>`;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save terms';
+    }
+});
+
+// ---------- SNIPPET ----------
+async function copySnippet(siteId) {
+    const site = sites.find(s => s.id === siteId);
+    if (!site) return;
+    const snippet = '<!-- AgentPedia Shield -->\n<script src="https://agentpedia.io/shield.js" data-site-key="' + site.site_key + '" async><\/script>';
+    try {
+        await navigator.clipboard.writeText(snippet);
+        alert('Snippet copied to clipboard!\n\nPaste it in your site <head> tag.');
+    } catch {
+        prompt('Copy this snippet into your site <head>:', snippet);
+    }
+}
+
+// ---------- UTIL ----------
+function escapeHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---------- BOOT ----------
+(async () => {
+    const { data } = await sb.auth.getSession();
+    render(data.session?.user || null);
+})();
+</script>
 </body>
 </html>

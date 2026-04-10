@@ -132,19 +132,19 @@
                         category: form.category,
                         short_description: form.short_description,
                         long_description: form.long_description || null,
-                        creator: form.creator || null,
+                        creator: form.creator || form.submitter_name || null,
+                        creator_email: form.submitter_email,
                         website: form.website || null,
-                        logo_url: form.logo_url || null,
                         api_base_url: form.api_base_url || null,
                         api_docs_url: form.api_docs_url || null,
-                        auth_type: form.auth_type || null,
-                        capabilities: capsArray.length ? capsArray : null,
-                        tags: tagsArray.length ? tagsArray : null,
-                        pricing: Object.keys(pricing).length ? pricing : null,
-                        status: 'pending'
+                        auth_type: form.auth_type || 'none',
+                        capabilities: capsArray,
+                        tags: tagsArray,
+                        pricing: Object.keys(pricing).length ? pricing : {}
+                        // status defaults to 'pending' in DB
                     };
 
-                    const res = await fetch(`${SUPABASE_URL}/rest/v1/agents`, {
+                    const res = await fetch(`${SUPABASE_URL}/rest/v1/submissions`, {
                         method: 'POST',
                         headers: {
                             'apikey': SUPABASE_ANON_KEY,

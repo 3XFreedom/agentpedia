@@ -29,6 +29,10 @@
       "dest": "/submit.html"
     },
     {
+      "src": "/review$",
+      "dest": "/review.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
