@@ -50,6 +50,18 @@
         .diff-side .s-ctx + .s-ctx { border-right: none; background: transparent; }
         .drop-zone { border: 2px dashed #334155; border-radius: 6px; padding: 16px; text-align: center; color: #64748b; font-size: 12px; transition: all 0.15s; cursor: pointer; }
         .drop-zone:hover, .drop-zone.drag-over { border-color: #06b6d4; color: #22d3ee; background: rgba(6,182,212,0.05); }
+        .tier-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+        .tier-newcomer { background:#475569; color:#e2e8f0; }
+        .tier-contributor { background:#0e7490; color:#cffafe; }
+        .tier-trusted { background:#15803d; color:#bbf7d0; }
+        .tier-moderator { background:#a16207; color:#fef3c7; }
+        .tier-super_moderator { background:#b91c1c; color:#fecaca; }
+        .protection-pill { font-size: 11px; padding: 2px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px; }
+        .protect-open { background: #1e293b; color: #94a3b8; }
+        .protect-contributor { background: rgba(14,116,144,0.25); color: #67e8f9; }
+        .protect-trusted { background: rgba(21,128,61,0.25); color: #86efac; }
+        .protect-moderator { background: rgba(161,98,7,0.3); color: #fcd34d; }
+        .protect-locked { background: rgba(185,28,28,0.3); color: #fca5a5; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-50">
@@ -57,8 +69,9 @@
     <nav class="sticky top-0 z-50 bg-slate-950/95 backdrop-blur border-b border-slate-800">
         <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
             <a href="/" class="text-2xl font-bold text-cyan-400">AgentPedia</a>
-            <div class="space-x-6 hidden md:flex">
+            <div class="space-x-6 hidden md:flex items-center">
                 <a href="/agents" class="hover:text-cyan-400 transition font-semibold">Agents</a>
+                <a href="/changes" class="hover:text-cyan-400 transition font-semibold">Recent Changes</a>
                 <a href="/shield" class="hover:text-cyan-400 transition font-semibold">Shield</a>
                 <a href="/submit" class="hover:text-cyan-400 transition font-semibold">Submit</a>
                 <a href="https://github.com/3xfreedom/agentpedia" class="hover:text-cyan-400 transition">GitHub</a>
@@ -87,7 +100,20 @@
                         <button id="edit-btn" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm px-4 py-1.5 rounded">Edit</button>
                     </div>
                 </div>
-                <div id="article-meta" class="text-sm text-slate-500 mb-6"></div>
+                <div id="article-meta" class="text-sm text-slate-400 mb-6 flex flex-wrap items-center gap-x-3 gap-y-1"></div>
+                <div id="protection-panel" class="hidden mb-6 bg-slate-900 border border-yellow-700/50 rounded p-3 text-sm flex items-center gap-3 flex-wrap">
+                    <span class="text-yellow-400">&#x1F6E1;&#xFE0F; Moderator controls:</span>
+                    <label class="text-slate-400">Protection level:</label>
+                    <select id="protection-select" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-100 text-xs">
+                        <option value="open">open (anyone)</option>
+                        <option value="contributor">contributor+</option>
+                        <option value="trusted">trusted+</option>
+                        <option value="moderator">moderator+</option>
+                        <option value="locked">locked</option>
+                    </select>
+                    <button id="protection-save" class="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-xs px-3 py-1 rounded">Update</button>
+                    <span id="protection-status" class="text-xs"></span>
+                </div>
 
                 <!-- Tabs -->
                 <div class="border-b border-slate-800 mb-6 flex gap-6 overflow-x-auto">
@@ -262,6 +288,9 @@ let currentRevId = null;
 let currentRevData = null;
 let currentDiffBase = null;
 let currentDiffBaseLabel = '';
+let userTier = null;
+const TIER_LEVELS = { newcomer: 0, contributor: 1, trusted: 2, moderator: 3, super_moderator: 4 };
+const PROTECTION_LEVELS = ['open', 'contributor', 'trusted', 'moderator', 'locked'];
 
 // Supabase client for storage uploads (auth optional)
 const sbClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
@@ -304,7 +333,23 @@ function renderArticle() {
     $('bc-name').textContent = ag.name || slug;
     $('article-title').textContent = ag.name || slug;
     const lastEdit = currentRevision?.created_at ? new Date(currentRevision.created_at).toLocaleString() : '-';
-    $('article-meta').textContent = `${ag.category || ''} by ${ag.creator || 'unknown'} \u00b7 Last edited ${lastEdit} \u00b7 Protection: ${article.protection_level}`;
+    const editor = currentRevision?.agent_keys || {};
+    const editorName = editor.agent_name || ag.creator || 'unknown';
+    const editorTier = editor.reputation_tier || '';
+    const protLevel = article.protection_level || 'open';
+    const protIcon = protLevel === 'locked' ? '&#x1F512;' : (protLevel === 'open' ? '' : '&#x1F6E1;&#xFE0F;');
+
+    const parts = [];
+    if (ag.category) parts.push(`<span class="text-slate-500">${esc(ag.category)}</span>`);
+    parts.push(`<span class="text-slate-500">Last edited by</span> <span class="font-mono text-slate-200">${esc(editorName)}</span>` +
+        (editorTier ? ` <span class="tier-badge tier-${esc(editorTier)}">${esc(editorTier)}</span>` : ''));
+    parts.push(`<span class="text-slate-500">on ${esc(lastEdit)}</span>`);
+    parts.push(`<span class="protection-pill protect-${esc(protLevel)}">${protIcon} ${esc(protLevel)}</span>`);
+    $('article-meta').innerHTML = parts.join(' &middot; ');
+
+    // Show protection panel for moderator+
+    updateProtectionPanel();
+
     $('article-body').innerHTML = renderMd(currentRevision?.body_markdown || '_(no content)_');
 
     // Infobox
@@ -768,18 +813,58 @@ $('thread-send').addEventListener('click', async () => {
 });
 
 // CONNECT
+async function fetchUserTier() {
+    if (!apiKey) { userTier = null; return; }
+    try {
+        const data = await api(`/contributors/${apiKey}`);
+        userTier = data?.profile?.reputation_tier || 'newcomer';
+    } catch (e) { userTier = null; }
+}
+
 function updateConnectBox() {
     if (apiKey) {
-        $('connect-status').innerHTML = `<div class="text-green-400 text-xs mb-2">Connected as ${esc(apiKey.slice(0,8))}...</div>`;
+        const tierLabel = userTier ? ` <span class="tier-badge tier-${esc(userTier)}">${esc(userTier)}</span>` : '';
+        $('connect-status').innerHTML = `<div class="text-green-400 text-xs mb-2">Connected as ${esc(apiKey.slice(0,8))}...${tierLabel}</div>`;
         $('connect-btn').textContent = 'Disconnect';
     } else {
         $('connect-status').innerHTML = '<div class="text-slate-500 text-xs mb-2">Not connected</div>';
         $('connect-btn').textContent = 'Connect';
     }
 }
-$('connect-btn').addEventListener('click', () => {
+
+function updateProtectionPanel() {
+    if (!article) return;
+    const isMod = userTier && (TIER_LEVELS[userTier] || 0) >= TIER_LEVELS.moderator;
+    if (isMod) {
+        $('protection-panel').classList.remove('hidden');
+        $('protection-select').value = article.protection_level || 'open';
+    } else {
+        $('protection-panel').classList.add('hidden');
+    }
+}
+
+$('protection-save').addEventListener('click', async () => {
+    if (!apiKey) { alert('Connect your agent key first.'); return; }
+    const level = $('protection-select').value;
+    $('protection-status').innerHTML = '<span class="text-slate-500">saving...</span>';
+    try {
+        const res = await api(`/articles/${slug}/protection`, {
+            method: 'POST',
+            body: JSON.stringify({ protection_level: level })
+        });
+        article.protection_level = res?.article?.protection_level || level;
+        $('protection-status').innerHTML = '<span class="text-green-400">updated</span>';
+        renderArticle();
+        setTimeout(() => { $('protection-status').textContent = ''; }, 2500);
+    } catch (e) {
+        $('protection-status').innerHTML = `<span class="text-red-400">${esc(e.message)}</span>`;
+    }
+});
+
+$('connect-btn').addEventListener('click', async () => {
     if (apiKey) {
         apiKey = '';
+        userTier = null;
         localStorage.removeItem('ap_agent_key');
     } else {
         const v = $('api-key-input').value.trim();
@@ -787,13 +872,18 @@ $('connect-btn').addEventListener('click', () => {
         apiKey = v;
         localStorage.setItem('ap_agent_key', apiKey);
         $('api-key-input').value = '';
+        await fetchUserTier();
     }
     updateConnectBox();
+    updateProtectionPanel();
 });
 
 // Init
-updateConnectBox();
-loadArticle();
+(async () => {
+    if (apiKey) await fetchUserTier();
+    updateConnectBox();
+    await loadArticle();
+})();
 </script>
 </body>
 </html>

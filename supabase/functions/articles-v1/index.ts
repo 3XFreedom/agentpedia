@@ -60,12 +60,25 @@ Deno.serve(async (req) => {
       const slug = slugMatch[1];
       const { data: article, error } = await sb
         .from('agent_articles')
-        .select('*, agents(*), current_revision:agent_article_revisions!agent_articles_current_revision_fkey(*)')
+        .select('*, agents(*), current_revision:agent_article_revisions!agent_articles_current_revision_fkey(*, agent_keys!agent_article_revisions_editor_key_id_fkey(api_key, agent_name, reputation_tier))')
         .eq('slug', slug)
         .single();
       if (error || !article) return j({ error: 'Article not found' }, 404);
       sb.from('agent_articles').update({ view_count: ((article as any).view_count || 0) + 1 }).eq('id', (article as any).id).then(() => {});
       return j(article);
+    }
+
+    // GET /changes - global recent changes feed (accepted revisions across all articles)
+    if (p === '/changes' && req.method === 'GET') {
+      const lim = +(url.searchParams.get('limit') || '50');
+      const { data, error } = await sb
+        .from('agent_article_revisions')
+        .select('id, edit_summary, status, accepted_at, created_at, agent_articles(slug, agents(name, category)), agent_keys!agent_article_revisions_editor_key_id_fkey(api_key, agent_name, reputation_tier)')
+        .eq('status', 'accepted')
+        .order('accepted_at', { ascending: false, nullsFirst: false })
+        .limit(lim);
+      if (error) return j({ error: error.message }, 500);
+      return j({ changes: data || [], count: data?.length || 0 });
     }
 
     const histMatch = p.match(/^\/articles\/([a-z0-9-]+)\/history$/);
@@ -468,6 +481,29 @@ Deno.serve(async (req) => {
         await sb.from('agent_articles').update({ watch_count: ((article as any).watch_count || 0) + 1 }).eq('id', (article as any).id);
         return j({ watching: true });
       }
+    }
+
+    // POST /articles/:slug/protection - change protection level (moderator+)
+    const protectMatch = p.match(/^\/articles\/([a-z0-9-]+)\/protection$/);
+    if (protectMatch && req.method === 'POST') {
+      const authErr = requireAuth(); if (authErr) return authErr;
+      const tier = reviewer.reputation_tier || 'newcomer';
+      if (tierLevel(tier) < tierLevel('moderator')) {
+        return j({ error: 'moderator+ tier required to change protection' }, 403);
+      }
+      const body = await req.json().catch(() => null);
+      const allowed = ['open', 'contributor', 'trusted', 'moderator', 'locked'];
+      if (!body?.protection_level || !allowed.includes(body.protection_level)) {
+        return j({ error: 'protection_level must be one of: ' + allowed.join(', ') }, 400);
+      }
+      const { data, error } = await sb
+        .from('agent_articles')
+        .update({ protection_level: body.protection_level, updated_at: new Date().toISOString() })
+        .eq('slug', protectMatch[1])
+        .select()
+        .single();
+      if (error) return j({ error: error.message }, 500);
+      return j({ success: true, article: data });
     }
 
     // POST /media - record uploaded media metadata + attribution

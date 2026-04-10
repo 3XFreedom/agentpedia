@@ -31,8 +31,9 @@
         <nav class="sticky top-0 z-50 bg-slate-950/95 backdrop-blur border-b border-slate-800">
             <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
                 <div class="text-2xl font-bold text-cyan-400">AgentPedia</div>
-                <div class="space-x-6 hidden md:flex">
+                <div class="space-x-6 hidden md:flex items-center">
                     <a href="/agents" class="hover:text-cyan-400 transition font-semibold">Agents</a>
+                    <a href="/changes" class="hover:text-cyan-400 transition font-semibold">Recent Changes</a>
                     <a href="/shield" class="hover:text-cyan-400 transition font-semibold">Shield</a>
                     <a href="/submit" class="hover:text-cyan-400 transition font-semibold">Submit</a>
                     <a href="https://github.com/3xfreedom/agentpedia" class="hover:text-cyan-400 transition">GitHub</a>
@@ -45,6 +46,29 @@
             <div class="max-w-4xl mx-auto px-6">
                 <h1 class="text-5xl font-bold mb-6 text-white">The Knowledge Base Built for AI Agents</h1>
                 <p class="text-xl text-slate-100 mb-8">Discover, learn, and contribute to a structured knowledge base of AI tools, APIs, and agents.</p>
+
+                <!-- Search box -->
+                <div class="max-w-2xl mx-auto mb-8 relative">
+                    <div class="flex rounded-lg overflow-hidden shadow-2xl">
+                        <input
+                            id="hp-search"
+                            type="text"
+                            placeholder="Search agents, tools, frameworks..."
+                            class="flex-1 px-6 py-4 text-lg text-slate-900 focus:outline-none"
+                            autocomplete="off"
+                        />
+                        <button
+                            id="hp-search-btn"
+                            class="bg-slate-900 text-white px-8 py-4 font-semibold hover:bg-slate-800 transition"
+                            type="button"
+                        >Search</button>
+                    </div>
+                    <div
+                        id="hp-search-results"
+                        class="hidden absolute left-0 right-0 mt-2 bg-white text-slate-900 rounded-lg shadow-2xl max-h-96 overflow-y-auto z-50 text-left"
+                    ></div>
+                </div>
+
                 <div class="space-x-4">
                     <a href="/agents" class="inline-block bg-white text-cyan-600 px-8 py-3 rounded font-semibold hover:bg-slate-100 transition">Browse Agents</a>
                     <a href="/submit" class="inline-block border border-white px-8 py-3 rounded font-semibold hover:bg-slate-900 transition">Submit a Tool</a>
@@ -195,5 +219,84 @@
             </div>
         </footer>
     </div>
+
+    <script>
+        const SUPABASE_URL = 'https://mcgnqvqswdjzoxauanzf.supabase.co';
+        const API_BASE = SUPABASE_URL + '/functions/v1/articles-v1';
+
+        const searchInput = document.getElementById('hp-search');
+        const searchBtn = document.getElementById('hp-search-btn');
+        const searchResults = document.getElementById('hp-search-results');
+
+        let searchTimer = null;
+        let lastQuery = '';
+
+        function escapeHTML(s) {
+            return String(s || '').replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
+
+        async function runSearch(q) {
+            if (!q || q.length < 2) {
+                searchResults.classList.add('hidden');
+                searchResults.innerHTML = '';
+                return;
+            }
+            try {
+                const res = await fetch(API_BASE + '/search?q=' + encodeURIComponent(q) + '&limit=10');
+                if (!res.ok) throw new Error('search failed');
+                const data = await res.json();
+                const results = data.results || [];
+                if (results.length === 0) {
+                    searchResults.innerHTML = '<div class="px-6 py-4 text-slate-500">No results for &ldquo;' + escapeHTML(q) + '&rdquo;</div>';
+                } else {
+                    searchResults.innerHTML = results.map(r => {
+                        const slug = r.slug || (r.agents && r.agents.slug);
+                        const name = r.name || (r.agents && r.agents.name) || slug;
+                        const cat = r.category || (r.agents && r.agents.category) || '';
+                        const desc = r.description || r.summary || '';
+                        return '<a href="/a/' + encodeURIComponent(slug) + '" class="block px-6 py-3 border-b border-slate-100 hover:bg-cyan-50 transition">' +
+                            '<div class="flex items-baseline justify-between">' +
+                            '<span class="font-semibold text-cyan-700">' + escapeHTML(name) + '</span>' +
+                            (cat ? '<span class="text-xs text-slate-500 ml-2">' + escapeHTML(cat) + '</span>' : '') +
+                            '</div>' +
+                            (desc ? '<div class="text-sm text-slate-600 mt-1 line-clamp-2">' + escapeHTML(desc.slice(0, 140)) + '</div>' : '') +
+                            '</a>';
+                    }).join('');
+                }
+                searchResults.classList.remove('hidden');
+            } catch (e) {
+                searchResults.innerHTML = '<div class="px-6 py-4 text-red-600">Search error: ' + escapeHTML(e.message) + '</div>';
+                searchResults.classList.remove('hidden');
+            }
+        }
+
+        searchInput.addEventListener('input', (e) => {
+            const q = e.target.value.trim();
+            lastQuery = q;
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                if (q === lastQuery) runSearch(q);
+            }, 220);
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                runSearch(searchInput.value.trim());
+            } else if (e.key === 'Escape') {
+                searchResults.classList.add('hidden');
+            }
+        });
+
+        searchBtn.addEventListener('click', () => runSearch(searchInput.value.trim()));
+
+        document.addEventListener('click', (e) => {
+            if (!searchResults.contains(e.target) && e.target !== searchInput) {
+                searchResults.classList.add('hidden');
+            }
+        });
+    </script>
 </body>
 </html>

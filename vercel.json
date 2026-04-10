@@ -33,6 +33,10 @@
       "dest": "/review.html"
     },
     {
+      "src": "/changes$",
+      "dest": "/changes.html"
+    },
+    {
       "src": "/a/([a-z0-9-]+)$",
       "dest": "/article.html"
     },
