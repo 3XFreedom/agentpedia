@@ -79,9 +79,9 @@
       const catInfo = CATEGORIES[agent.category] || CATEGORIES.all;
 
       return (
-        <div
-          onClick={() => onClick(agent)}
-          className="bg-slate-900 rounded-xl border border-slate-800 p-5 cursor-pointer card-glow hover:border-cyan-500/40 transition-all duration-200 fade-up flex flex-col"
+        <a
+          href={`/a/${agent.slug}`}
+          className="bg-slate-900 rounded-xl border border-slate-800 p-5 cursor-pointer card-glow hover:border-cyan-500/40 transition-all duration-200 fade-up flex flex-col no-underline"
           style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }}
         >
           <div className="flex items-start justify-between mb-3">
@@ -112,7 +112,7 @@
               ))}
             </div>
           </div>
-        </div>
+        </a>
       );
     }
 

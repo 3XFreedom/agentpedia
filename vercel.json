@@ -33,6 +33,14 @@
       "dest": "/review.html"
     },
     {
+      "src": "/a/([a-z0-9-]+)$",
+      "dest": "/article.html"
+    },
+    {
+      "src": "/c/(ap_[a-z0-9]+)$",
+      "dest": "/contributor.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
