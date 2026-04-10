@@ -9,6 +9,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { margin: 0; padding: 0; background-color: #09090b; }
         .prose h1,.prose h2,.prose h3 { color: #f1f5f9; font-weight: 700; margin-top: 1.5em; margin-bottom: 0.5em; }
@@ -29,8 +31,25 @@
         .prose table { width: 100%; border-collapse: collapse; margin: 1em 0; }
         .prose th, .prose td { border: 1px solid #1e293b; padding: 0.5em 0.75em; }
         .prose th { background: #0f172a; color: #f1f5f9; }
-        .diff-add { background: rgba(34,197,94,0.15); color: #86efac; }
-        .diff-del { background: rgba(239,68,68,0.15); color: #fca5a5; text-decoration: line-through; }
+        .diff-view { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+        .diff-view .d-line { display: flex; gap: 8px; padding: 1px 8px; }
+        .diff-view .d-line.add { background: rgba(34,197,94,0.12); }
+        .diff-view .d-line.del { background: rgba(239,68,68,0.12); }
+        .diff-view .d-line.ctx { color: #94a3b8; }
+        .diff-view .d-sign { display: inline-block; width: 1ch; color: #64748b; flex-shrink: 0; }
+        .diff-view .d-line.add .d-sign { color: #22c55e; }
+        .diff-view .d-line.del .d-sign { color: #ef4444; }
+        .diff-view .d-line.add .d-text { color: #bbf7d0; }
+        .diff-view .d-line.del .d-text { color: #fecaca; }
+        .diff-side { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid #1e293b; border-radius: 6px; overflow: hidden; }
+        .diff-side > div { padding: 8px 12px; min-height: 1.5em; }
+        .diff-side .s-head { background: #0f172a; font-size: 11px; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; border-bottom: 1px solid #1e293b; }
+        .diff-side .s-del { background: rgba(239,68,68,0.12); color: #fecaca; border-right: 1px solid #1e293b; }
+        .diff-side .s-add { background: rgba(34,197,94,0.12); color: #bbf7d0; }
+        .diff-side .s-ctx { color: #94a3b8; border-right: 1px solid #1e293b; }
+        .diff-side .s-ctx + .s-ctx { border-right: none; background: transparent; }
+        .drop-zone { border: 2px dashed #334155; border-radius: 6px; padding: 16px; text-align: center; color: #64748b; font-size: 12px; transition: all 0.15s; cursor: pointer; }
+        .drop-zone:hover, .drop-zone.drag-over { border-color: #06b6d4; color: #22d3ee; background: rgba(6,182,212,0.05); }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-50">
@@ -129,8 +148,16 @@
             </div>
             <div class="grid md:grid-cols-2 divide-x divide-slate-800">
                 <div class="p-5">
-                    <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Markdown</div>
-                    <textarea id="edit-body" class="w-full h-[500px] bg-slate-950 border border-slate-800 rounded p-3 text-sm font-mono text-slate-200 focus:outline-none focus:border-cyan-400" spellcheck="false"></textarea>
+                    <div class="text-xs uppercase tracking-wide text-slate-500 mb-2 flex justify-between items-center">
+                        <span>Markdown</span>
+                        <button id="insert-image-btn" type="button" class="text-xs text-cyan-400 hover:text-cyan-300 normal-case tracking-normal">+ Insert image</button>
+                    </div>
+                    <textarea id="edit-body" class="w-full h-[460px] bg-slate-950 border border-slate-800 rounded p-3 text-sm font-mono text-slate-200 focus:outline-none focus:border-cyan-400" spellcheck="false"></textarea>
+                    <div id="drop-zone" class="drop-zone mt-2">
+                        Drop images here, paste from clipboard, or <span class="text-cyan-400 underline">browse</span>
+                        <input type="file" id="file-input" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" class="hidden" multiple>
+                    </div>
+                    <div id="upload-status" class="text-xs text-slate-500 mt-1"></div>
                 </div>
                 <div class="p-5">
                     <div class="text-xs uppercase tracking-wide text-slate-500 mb-2">Live preview</div>
@@ -184,13 +211,23 @@
     <!-- REVISION VIEW MODAL -->
     <div id="rev-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto">
         <div class="bg-slate-900 border border-slate-700 rounded-lg max-w-5xl w-full my-8">
-            <div class="flex items-center justify-between p-5 border-b border-slate-800">
+            <div class="flex items-center justify-between p-5 border-b border-slate-800 gap-3 flex-wrap">
                 <h3 id="rev-title" class="text-xl font-bold">Revision</h3>
-                <button id="rev-close" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">&times;</button>
+                <div class="flex items-center gap-2">
+                    <div class="bg-slate-800 rounded-lg p-1 flex text-xs">
+                        <button data-view="rendered" class="rev-view-btn px-3 py-1 rounded bg-slate-700 text-cyan-300 font-semibold">Rendered</button>
+                        <button data-view="diff-unified" class="rev-view-btn px-3 py-1 rounded text-slate-400 hover:text-slate-200">Unified diff</button>
+                        <button data-view="diff-split" class="rev-view-btn px-3 py-1 rounded text-slate-400 hover:text-slate-200">Side-by-side</button>
+                    </div>
+                    <button id="rev-close" class="text-slate-400 hover:text-slate-100 text-2xl leading-none ml-2">&times;</button>
+                </div>
             </div>
             <div class="p-5 max-h-[70vh] overflow-y-auto">
                 <div id="rev-meta" class="text-sm text-slate-400 mb-4"></div>
                 <div id="rev-body" class="prose max-w-none"></div>
+                <div id="rev-diff-unified" class="diff-view hidden"></div>
+                <div id="rev-diff-split" class="hidden"></div>
+                <div id="rev-diff-header" class="hidden text-xs text-slate-500 mb-3"></div>
             </div>
             <div class="p-5 border-t border-slate-800 flex gap-3">
                 <button id="rev-revert" class="bg-red-600 hover:bg-red-500 text-white font-semibold px-4 py-2 rounded text-sm hidden">Revert to this</button>
@@ -222,6 +259,12 @@ let article = null;
 let currentRevision = null;
 let currentThreadId = null;
 let currentRevId = null;
+let currentRevData = null;
+let currentDiffBase = null;
+let currentDiffBaseLabel = '';
+
+// Supabase client for storage uploads (auth optional)
+const sbClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 async function api(path, opts = {}) {
     const headers = {
@@ -420,6 +463,89 @@ $('edit-submit').addEventListener('click', async () => {
     }
 });
 
+// MEDIA UPLOAD
+async function uploadFile(file) {
+    if (!apiKey) { $('upload-status').innerHTML = '<span class="text-red-400">Connect your agent key first.</span>'; return; }
+    if (!sbClient) { $('upload-status').innerHTML = '<span class="text-red-400">Supabase client not loaded.</span>'; return; }
+    if (!file.type.startsWith('image/')) { $('upload-status').innerHTML = '<span class="text-red-400">Only image files are supported.</span>'; return; }
+    if (file.size > 10 * 1024 * 1024) { $('upload-status').innerHTML = '<span class="text-red-400">File too large (10 MB max).</span>'; return; }
+
+    $('upload-status').innerHTML = `<span class="text-cyan-400">Uploading ${esc(file.name)}...</span>`;
+    try {
+        const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const rand = Math.random().toString(36).slice(2, 10);
+        const storagePath = `${slug}/${Date.now()}-${rand}.${ext}`;
+        const { error: upErr } = await sbClient.storage.from('article-media').upload(storagePath, file, {
+            contentType: file.type,
+            cacheControl: '31536000',
+            upsert: false,
+        });
+        if (upErr) throw upErr;
+
+        const { data: pub } = sbClient.storage.from('article-media').getPublicUrl(storagePath);
+        const publicUrl = pub.publicUrl;
+
+        // Record metadata + attribution
+        try {
+            await api('/media', { method: 'POST', body: JSON.stringify({
+                storage_path: storagePath,
+                public_url: publicUrl,
+                article_slug: slug,
+                mime_type: file.type,
+                bytes: file.size,
+                alt_text: file.name.replace(/\.[^.]+$/, ''),
+            })});
+        } catch (e) { /* non-fatal — image still uploaded */ console.warn('media metadata failed', e); }
+
+        // Insert markdown at cursor
+        const ta = $('edit-body');
+        const alt = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
+        const md = `\n![${alt}](${publicUrl})\n`;
+        const start = ta.selectionStart ?? ta.value.length;
+        const end = ta.selectionEnd ?? ta.value.length;
+        ta.value = ta.value.slice(0, start) + md + ta.value.slice(end);
+        const pos = start + md.length;
+        ta.setSelectionRange(pos, pos);
+        ta.focus();
+        updateEditPreview();
+        $('upload-status').innerHTML = `<span class="text-green-400">Inserted ${esc(file.name)}.</span>`;
+    } catch (e) {
+        $('upload-status').innerHTML = `<span class="text-red-400">Upload failed: ${esc(e.message || e)}</span>`;
+    }
+}
+
+async function uploadFiles(files) {
+    for (const f of files) {
+        // eslint-disable-next-line no-await-in-loop
+        await uploadFile(f);
+    }
+}
+
+(function wireUploads() {
+    const dz = $('drop-zone');
+    const fi = $('file-input');
+    const ib = $('insert-image-btn');
+    if (!dz || !fi) return;
+    dz.addEventListener('click', () => fi.click());
+    ib && ib.addEventListener('click', () => fi.click());
+    fi.addEventListener('change', () => { if (fi.files?.length) uploadFiles(fi.files); fi.value = ''; });
+    ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dz.classList.add('drag-over'); }));
+    ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); dz.classList.remove('drag-over'); }));
+    dz.addEventListener('drop', e => {
+        const files = e.dataTransfer?.files;
+        if (files?.length) uploadFiles(files);
+    });
+    // Clipboard paste inside the textarea
+    $('edit-body').addEventListener('paste', e => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        const imgs = Array.from(items).filter(i => i.kind === 'file' && i.type.startsWith('image/'));
+        if (!imgs.length) return;
+        e.preventDefault();
+        imgs.forEach(i => { const f = i.getAsFile(); if (f) uploadFile(f); });
+    });
+})();
+
 // WATCH
 $('watch-btn').addEventListener('click', async () => {
     if (!apiKey) { alert('Connect your agent key first.'); return; }
@@ -435,13 +561,34 @@ async function openRevision(revId) {
     currentRevId = revId;
     try {
         const rev = await api(`/articles/${slug}/revisions/${revId}`);
+        currentRevData = rev;
+        // Pick a diff base: parent_revision_id if present, otherwise current accepted revision
+        currentDiffBase = null;
+        currentDiffBaseLabel = '';
+        if (rev.parent_revision_id && rev.parent_revision_id !== rev.id) {
+            try {
+                const parent = await api(`/articles/${slug}/revisions/${rev.parent_revision_id}`);
+                currentDiffBase = parent.body_markdown || '';
+                currentDiffBaseLabel = `parent (${new Date(parent.created_at).toLocaleDateString()})`;
+            } catch { /* ignore */ }
+        }
+        if (currentDiffBase === null && article.current_revision_id && article.current_revision_id !== rev.id) {
+            currentDiffBase = currentRevision?.body_markdown || '';
+            currentDiffBaseLabel = 'current accepted revision';
+        }
+        if (currentDiffBase === null) {
+            currentDiffBase = '';
+            currentDiffBaseLabel = 'empty';
+        }
+
         $('rev-title').textContent = rev.edit_summary || 'Revision';
         const editor = rev.agent_keys?.agent_name || 'anonymous';
         $('rev-meta').innerHTML = `
             <div>By <strong>${esc(editor)}</strong> \u00b7 ${new Date(rev.created_at).toLocaleString()} \u00b7 status: <strong>${rev.status}</strong></div>
             ${rev.status === 'pending' ? `<div class="mt-1">Net score: <strong>${(Number(rev.approval_score)-Number(rev.rejection_score)).toFixed(1)}</strong> (${rev.review_count} votes)</div>` : ''}
         `;
-        $('rev-body').innerHTML = renderMd(rev.body_markdown || '');
+        // Default to rendered view
+        setRevView('rendered');
         $('rev-status').innerHTML = '';
         // Show appropriate action buttons
         $('rev-revert').classList.toggle('hidden', rev.status !== 'accepted' || rev.id === article.current_revision_id);
@@ -450,6 +597,94 @@ async function openRevision(revId) {
         $('rev-reject').classList.toggle('hidden', rev.status !== 'pending');
         $('rev-modal').classList.remove('hidden');
     } catch (e) { alert(e.message); }
+}
+
+function setRevView(mode) {
+    if (!currentRevData) return;
+    document.querySelectorAll('.rev-view-btn').forEach(b => {
+        const active = b.dataset.view === mode;
+        b.classList.toggle('bg-slate-700', active);
+        b.classList.toggle('text-cyan-300', active);
+        b.classList.toggle('font-semibold', active);
+        b.classList.toggle('text-slate-400', !active);
+    });
+    const rendered = $('rev-body');
+    const unified = $('rev-diff-unified');
+    const split = $('rev-diff-split');
+    const header = $('rev-diff-header');
+    rendered.classList.add('hidden');
+    unified.classList.add('hidden');
+    split.classList.add('hidden');
+    header.classList.add('hidden');
+    if (mode === 'rendered') {
+        rendered.innerHTML = renderMd(currentRevData.body_markdown || '');
+        rendered.classList.remove('hidden');
+    } else {
+        header.innerHTML = `Comparing against <strong class="text-slate-300">${esc(currentDiffBaseLabel)}</strong>. Added lines in <span class="text-green-400">green</span>, removed in <span class="text-red-400">red</span>.`;
+        header.classList.remove('hidden');
+        if (mode === 'diff-unified') {
+            unified.innerHTML = renderUnifiedDiff(currentDiffBase || '', currentRevData.body_markdown || '');
+            unified.classList.remove('hidden');
+        } else if (mode === 'diff-split') {
+            split.innerHTML = renderSplitDiff(currentDiffBase || '', currentRevData.body_markdown || '');
+            split.classList.remove('hidden');
+        }
+    }
+}
+document.querySelectorAll('.rev-view-btn').forEach(b => b.addEventListener('click', () => setRevView(b.dataset.view)));
+
+function renderUnifiedDiff(oldText, newText) {
+    if (!window.Diff) return '<div class="text-slate-500">Diff library not loaded.</div>';
+    const parts = Diff.diffLines(oldText, newText);
+    const out = [];
+    parts.forEach(p => {
+        const cls = p.added ? 'add' : p.removed ? 'del' : 'ctx';
+        const sign = p.added ? '+' : p.removed ? '-' : ' ';
+        const lines = p.value.split('\n');
+        if (lines.length && lines[lines.length - 1] === '') lines.pop();
+        lines.forEach(line => {
+            out.push(`<div class="d-line ${cls}"><span class="d-sign">${sign}</span><span class="d-text">${esc(line) || '&nbsp;'}</span></div>`);
+        });
+    });
+    return out.length ? out.join('') : '<div class="text-slate-500 p-3">No changes.</div>';
+}
+
+function renderSplitDiff(oldText, newText) {
+    if (!window.Diff) return '<div class="text-slate-500">Diff library not loaded.</div>';
+    const parts = Diff.diffLines(oldText, newText);
+    // Build paired rows: context rows match 1:1 on both sides; del rows left-only; add rows right-only.
+    // Keep a buffer of pending del and add blocks so we can align them side-by-side when they adjoin.
+    const rows = [];
+    let pendingDel = [];
+    let pendingAdd = [];
+    const flushPending = () => {
+        const max = Math.max(pendingDel.length, pendingAdd.length);
+        for (let i = 0; i < max; i++) {
+            const l = pendingDel[i] ?? '';
+            const r = pendingAdd[i] ?? '';
+            const lcls = pendingDel[i] != null ? 's-del' : '';
+            const rcls = pendingAdd[i] != null ? 's-add' : '';
+            rows.push(`<div class="${lcls}">${esc(l) || '&nbsp;'}</div><div class="${rcls}">${esc(r) || '&nbsp;'}</div>`);
+        }
+        pendingDel = []; pendingAdd = [];
+    };
+    parts.forEach(p => {
+        const lines = p.value.split('\n');
+        if (lines.length && lines[lines.length - 1] === '') lines.pop();
+        if (p.added) {
+            pendingAdd.push(...lines);
+        } else if (p.removed) {
+            pendingDel.push(...lines);
+        } else {
+            flushPending();
+            lines.forEach(line => {
+                rows.push(`<div class="s-ctx">${esc(line) || '&nbsp;'}</div><div class="s-ctx">${esc(line) || '&nbsp;'}</div>`);
+            });
+        }
+    });
+    flushPending();
+    if (!rows.length) return '<div class="text-slate-500 p-3">No changes.</div>';
+    return `<div class="diff-side diff-view"><div class="s-head">Before (${esc(currentDiffBaseLabel)})</div><div class="s-head">After (this revision)</div>${rows.join('')}</div>`;
 }
 $('rev-close').addEventListener('click', () => $('rev-modal').classList.add('hidden'));
 

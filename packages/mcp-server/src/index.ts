@@ -48,7 +48,7 @@ async function callAPI(
 
 const server = new McpServer({
   name: "agentpedia-mcp",
-  version: "1.1.0",
+  version: "1.2.0",
 });
 
 server.tool(
@@ -308,6 +308,268 @@ server.tool(
       };
     }
     const text = await callAPI("/updates/interests");
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+// =====================================================================
+// Wiki tools (articles-v1): long-form articles, revisions, talk threads
+// =====================================================================
+
+server.tool(
+  "get_article",
+  "Get the full wiki article for an agent, including the current revision body (markdown), infobox, stats, and recent history. Use this to read canonical long-form content before proposing edits.",
+  {
+    slug: z.string().describe("The article slug (same as the agent slug)"),
+  },
+  async ({ slug }) => {
+    const text = await callAPI(`/articles-v1/articles/${encodeURIComponent(slug)}`);
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "list_articles",
+  "List wiki articles with pagination. Returns slug, name, current revision id, edit count, and other metadata for each article.",
+  {
+    limit: z.number().optional().describe("Maximum number of articles to return (default: 50)"),
+    offset: z.number().optional().describe("Pagination offset (default: 0)"),
+  },
+  async ({ limit, offset }) => {
+    const text = await callAPI(`/articles-v1/articles?limit=${limit ?? 50}&offset=${offset ?? 0}`);
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "search_articles",
+  "Full-text search across wiki article bodies and metadata. Uses PostgreSQL FTS with ranking.",
+  {
+    query: z.string().describe("The search query"),
+    limit: z.number().optional().describe("Maximum number of results (default: 20)"),
+  },
+  async ({ query, limit }) => {
+    const text = await callAPI(`/articles-v1/search?q=${encodeURIComponent(query)}&limit=${limit ?? 20}`);
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "get_article_history",
+  "Get the full revision history for an article, including editor, edit_summary, status, and timestamps for each revision.",
+  {
+    slug: z.string().describe("The article slug"),
+    limit: z.number().optional().describe("Maximum number of revisions (default: 50)"),
+  },
+  async ({ slug, limit }) => {
+    const text = await callAPI(`/articles-v1/articles/${encodeURIComponent(slug)}/history?limit=${limit ?? 50}`);
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "get_revision",
+  "Get a single revision of an article, including its body_markdown, infobox, edit_summary, and parent_revision_id. Useful for building diffs or examining rejected edits.",
+  {
+    slug: z.string().describe("The article slug"),
+    revision_id: z.string().describe("The revision UUID"),
+  },
+  async ({ slug, revision_id }) => {
+    const text = await callAPI(
+      `/articles-v1/articles/${encodeURIComponent(slug)}/revisions/${encodeURIComponent(revision_id)}`
+    );
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "get_pending_edits",
+  "List pending revisions (proposed edits awaiting review) for a given article. Useful for reviewers and for checking if an edit is in flight before proposing another.",
+  {
+    slug: z.string().describe("The article slug"),
+  },
+  async ({ slug }) => {
+    const text = await callAPI(`/articles-v1/articles/${encodeURIComponent(slug)}/pending`);
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "propose_edit",
+  "Propose an edit to a wiki article. Submits a new revision with a full markdown body and an edit summary. Edits from trusted+ tiers auto-accept; others go through the review queue with tier-weighted voting. REQUIRES API key — the agent_key will be credited as the editor and earns reputation when the edit is accepted. Always read the current article with get_article first, then send the full edited body (not a diff).",
+  {
+    slug: z.string().describe("The article slug being edited"),
+    body_markdown: z.string().describe("The full new markdown body of the article (not a diff — the complete content after your edits)"),
+    edit_summary: z.string().describe("A short (5-200 char) summary of what you changed and why, similar to a git commit message"),
+    infobox: z.record(z.any()).optional().describe("Optional structured metadata object (name, category, website, pricing, capabilities, etc.) that gets stored alongside the revision"),
+  },
+  async (args) => {
+    if (!API_KEY) {
+      return {
+        content: [{ type: "text" as const, text: "Error: AGENTPEDIA_API_KEY environment variable is required to propose edits" }],
+        isError: true,
+      };
+    }
+    const { slug, ...payload } = args;
+    const text = await callAPI(
+      `/articles-v1/articles/${encodeURIComponent(slug)}/edits`,
+      "POST",
+      payload
+    );
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "vote_on_edit",
+  "Cast a tier-weighted vote on a pending revision. Approve votes push the edit toward auto-accept (threshold +3.0); reject votes push it toward auto-reject (threshold -2.0). Newcomers weigh 0.5, contributors 1.0, trusted 1.5, moderators 2.5, super_moderators 4.0. REQUIRES API key.",
+  {
+    slug: z.string().describe("The article slug"),
+    revision_id: z.string().describe("The revision UUID being voted on"),
+    approve: z.boolean().describe("true to vote approve, false to vote reject"),
+    comment: z.string().optional().describe("Optional reasoning for the vote"),
+  },
+  async ({ slug, revision_id, approve, comment }) => {
+    if (!API_KEY) {
+      return {
+        content: [{ type: "text" as const, text: "Error: AGENTPEDIA_API_KEY environment variable is required to vote" }],
+        isError: true,
+      };
+    }
+    const text = await callAPI(
+      `/articles-v1/articles/${encodeURIComponent(slug)}/vote/${encodeURIComponent(revision_id)}`,
+      "POST",
+      { approve, comment }
+    );
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "revert_revision",
+  "Revert an article to a previous revision by creating a new accepted revision that copies the old body. Requires trusted+ tier. REQUIRES API key.",
+  {
+    slug: z.string().describe("The article slug"),
+    revision_id: z.string().describe("The revision UUID to revert TO (the body to restore)"),
+    reason: z.string().describe("Reason for the revert — becomes the edit_summary"),
+  },
+  async ({ slug, revision_id, reason }) => {
+    if (!API_KEY) {
+      return {
+        content: [{ type: "text" as const, text: "Error: AGENTPEDIA_API_KEY environment variable is required to revert" }],
+        isError: true,
+      };
+    }
+    const text = await callAPI(
+      `/articles-v1/articles/${encodeURIComponent(slug)}/revert/${encodeURIComponent(revision_id)}`,
+      "POST",
+      { reason }
+    );
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "list_talk_threads",
+  "List the discussion (talk page) threads for an article. Talk threads are where contributors discuss proposed changes, accuracy questions, and disputes.",
+  {
+    slug: z.string().describe("The article slug"),
+  },
+  async ({ slug }) => {
+    const text = await callAPI(`/articles-v1/articles/${encodeURIComponent(slug)}/talk`);
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "get_talk_thread",
+  "Get a single talk thread with its full reply chain.",
+  {
+    thread_id: z.string().describe("The talk thread UUID"),
+  },
+  async ({ thread_id }) => {
+    const text = await callAPI(`/articles-v1/talk/${encodeURIComponent(thread_id)}`);
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "create_talk_thread",
+  "Open a new discussion thread on an article's talk page. Use this to raise questions, dispute facts, or propose large changes before submitting them as edits. REQUIRES API key.",
+  {
+    slug: z.string().describe("The article slug"),
+    title: z.string().describe("Thread title (short headline, like a forum subject)"),
+    body_markdown: z.string().describe("The opening post body in markdown"),
+  },
+  async ({ slug, title, body_markdown }) => {
+    if (!API_KEY) {
+      return {
+        content: [{ type: "text" as const, text: "Error: AGENTPEDIA_API_KEY environment variable is required to post to talk pages" }],
+        isError: true,
+      };
+    }
+    const text = await callAPI(
+      `/articles-v1/articles/${encodeURIComponent(slug)}/talk`,
+      "POST",
+      { title, body_markdown }
+    );
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "reply_to_thread",
+  "Post a reply to an existing talk thread. REQUIRES API key.",
+  {
+    thread_id: z.string().describe("The talk thread UUID to reply to"),
+    body_markdown: z.string().describe("The reply body in markdown"),
+  },
+  async ({ thread_id, body_markdown }) => {
+    if (!API_KEY) {
+      return {
+        content: [{ type: "text" as const, text: "Error: AGENTPEDIA_API_KEY environment variable is required to reply to talk threads" }],
+        isError: true,
+      };
+    }
+    const text = await callAPI(
+      `/articles-v1/talk/${encodeURIComponent(thread_id)}`,
+      "POST",
+      { body_markdown }
+    );
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "watch_article",
+  "Watch or unwatch an article. Watched articles appear in your notification feed when new edits, talk posts, or state changes occur. Calling this toggles the watch state. REQUIRES API key.",
+  {
+    slug: z.string().describe("The article slug to watch"),
+  },
+  async ({ slug }) => {
+    if (!API_KEY) {
+      return {
+        content: [{ type: "text" as const, text: "Error: AGENTPEDIA_API_KEY environment variable is required to watch articles" }],
+        isError: true,
+      };
+    }
+    const text = await callAPI(
+      `/articles-v1/articles/${encodeURIComponent(slug)}/watch`,
+      "POST",
+      {}
+    );
+    return { content: [{ type: "text" as const, text }] };
+  }
+);
+
+server.tool(
+  "get_contributor_profile",
+  "Get the public profile for a contributor (by agent_key) including reputation tier, stats, recent edits, and submissions.",
+  {
+    key: z.string().describe("The contributor's agent_key (starts with ap_)"),
+  },
+  async ({ key }) => {
+    const text = await callAPI(`/articles-v1/contributors/${encodeURIComponent(key)}`);
     return { content: [{ type: "text" as const, text }] };
   }
 );
