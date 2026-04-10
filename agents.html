@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Browse 100+ AI agents, APIs, frameworks, and tools. Search, filter, and discover the best AI tools for your project.">
+  <title>Agent Directory - AgentPedia</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='24' font-size='24' fill='%2306b6d4'>P</text></svg>">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <style>
+    body { background: #09090b; }
+    .card-glow:hover { box-shadow: 0 0 30px rgba(6,182,212,0.15); }
+    .search-glow:focus { box-shadow: 0 0 20px rgba(6,182,212,0.2); }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-up { animation: fadeUp 0.3s ease-out forwards; }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    .slide-in { animation: slideIn 0.25s ease-out forwards; }
+    .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  </style>
+</head>
+<body class="min-h-screen text-slate-50">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+    const SUPABASE_URL = "https://mcgnqvqswdjzoxauanzf.supabase.co";
+    const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jZ25xdnFzd2Rqem94YXVhbnpmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4MDQ3MDcsImV4cCI6MjA5MDM4MDcwN30.hXhFkCPpNT8mBMovRgSp8M2bP9WaBH7LbH23wWt0guw";
+
+    const CATEGORIES = {
+      all:       { label: "All",        icon: "\u2728", color: "cyan" },
+      ai_agent:  { label: "AI Agents",  icon: "\uD83E\uDD16", color: "violet" },
+      api:       { label: "APIs",       icon: "\uD83D\uDD17", color: "emerald" },
+      framework: { label: "Frameworks", icon: "\uD83D\uDEE0\uFE0F", color: "amber" },
+      tool:      { label: "Tools",      icon: "\u2699\uFE0F", color: "blue" },
+      protocol:  { label: "Protocols",  icon: "\uD83D\uDD04", color: "pink" },
+    };
+
+    const CAT_COLORS = {
+      ai_agent:  { bg: "bg-violet-500/20", text: "text-violet-300", border: "border-violet-500/30" },
+      api:       { bg: "bg-emerald-500/20", text: "text-emerald-300", border: "border-emerald-500/30" },
+      framework: { bg: "bg-amber-500/20", text: "text-amber-300", border: "border-amber-500/30" },
+      tool:      { bg: "bg-blue-500/20", text: "text-blue-300", border: "border-blue-500/30" },
+      protocol:  { bg: "bg-pink-500/20", text: "text-pink-300", border: "border-pink-500/30" },
+    };
+
+    /* ─── Data fetch ─── */
+    async function fetchAgents() {
+      const res = await fetch(
+        SUPABASE_URL + "/rest/v1/agents?select=id,name,slug,category,short_description,long_description,creator,website,logo_url,capabilities,tags,version,api_base_url,api_docs_url,pricing,auth_type&order=name.asc",
+        { headers: { apikey: SUPABASE_ANON, Authorization: "Bearer " + SUPABASE_ANON } }
+      );
+      if (!res.ok) throw new Error("Failed to load agents");
+      return res.json();
+    }
+
+    /* ─── Nav ─── */
+    function Nav() {
+      return (
+        <nav className="sticky top-0 z-50 bg-slate-950/95 backdrop-blur border-b border-slate-800">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="/" className="text-2xl font-bold text-cyan-400 hover:text-cyan-300 transition">AgentPedia</a>
+            <div className="space-x-6 hidden md:flex items-center">
+              <a href="/agents" className="text-cyan-400 font-semibold">Directory</a>
+              <a href="/shield" className="hover:text-cyan-400 transition">Shield</a>
+              <a href="/submit" className="hover:text-cyan-400 transition">Submit</a>
+              <a href="https://github.com/3xfreedom/agentpedia" className="hover:text-cyan-400 transition">GitHub</a>
+            </div>
+          </div>
+        </nav>
+      );
+    }
+
+    /* ─── Agent Card ─── */
+    function AgentCard({ agent, onClick, index }) {
+      const cat = CAT_COLORS[agent.category] || CAT_COLORS.tool;
+      const catInfo = CATEGORIES[agent.category] || CATEGORIES.all;
+
+      return (
+        <div
+          onClick={() => onClick(agent)}
+          className="bg-slate-900 rounded-xl border border-slate-800 p-5 cursor-pointer card-glow hover:border-cyan-500/40 transition-all duration-200 fade-up flex flex-col"
+          style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }}
+        >
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center gap-3">
+              {agent.logo_url ? (
+                <img src={agent.logo_url} alt="" className="w-10 h-10 rounded-lg bg-slate-800 object-cover" onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }} />
+              ) : null}
+              <div className={`w-10 h-10 rounded-lg ${cat.bg} ${cat.text} flex items-center justify-center text-lg font-bold`} style={agent.logo_url ? {display:'none'} : {}}>
+                {agent.name.charAt(0)}
+              </div>
+              <div>
+                <h3 className="font-semibold text-white text-base leading-tight">{agent.name}</h3>
+                <span className="text-slate-500 text-xs">{agent.creator}</span>
+              </div>
+            </div>
+            {agent.version && <span className="text-slate-600 text-xs font-mono">v{agent.version}</span>}
+          </div>
+
+          <p className="text-slate-400 text-sm mb-4 line-clamp-2 flex-1">{agent.short_description}</p>
+
+          <div className="flex items-center justify-between">
+            <span className={`text-xs px-2.5 py-1 rounded-full border ${cat.bg} ${cat.text} ${cat.border}`}>
+              {catInfo.icon} {catInfo.label.replace(/s$/, '')}
+            </span>
+            <div className="flex gap-1.5">
+              {(agent.tags || []).slice(0, 2).map((tag, i) => (
+                <span key={i} className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">{tag}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ─── Agent Detail Panel ─── */
+    function AgentDetail({ agent, onClose }) {
+      if (!agent) return null;
+      const cat = CAT_COLORS[agent.category] || CAT_COLORS.tool;
+      const catInfo = CATEGORIES[agent.category] || CATEGORIES.all;
+
+      return (
+        <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-2xl bg-slate-900 border-l border-slate-800 overflow-y-auto slide-in" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-800 p-6 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                {agent.logo_url ? (
+                  <img src={agent.logo_url} alt="" className="w-12 h-12 rounded-xl bg-slate-800 object-cover" />
+                ) : (
+                  <div className={`w-12 h-12 rounded-xl ${cat.bg} ${cat.text} flex items-center justify-center text-xl font-bold`}>
+                    {agent.name.charAt(0)}
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-xl font-bold text-white">{agent.name}</h2>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-slate-400 text-sm">{agent.creator}</span>
+                    {agent.version && <span className="text-slate-600 text-xs font-mono">v{agent.version}</span>}
+                  </div>
+                </div>
+              </div>
+              <button onClick={onClose} className="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition text-lg">
+                &times;
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Category + Auth */}
+              <div className="flex flex-wrap gap-2">
+                <span className={`text-xs px-3 py-1.5 rounded-full border ${cat.bg} ${cat.text} ${cat.border} font-medium`}>
+                  {catInfo.icon} {catInfo.label.replace(/s$/, '')}
+                </span>
+                {agent.auth_type && (
+                  <span className="text-xs px-3 py-1.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                    Auth: {agent.auth_type.replace(/_/g, ' ')}
+                  </span>
+                )}
+              </div>
+
+              {/* Description */}
+              <div>
+                <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-2">About</h3>
+                <p className="text-slate-300 leading-relaxed">{agent.long_description || agent.short_description}</p>
+              </div>
+
+              {/* Links */}
+              <div className="flex flex-wrap gap-3">
+                {agent.website && (
+                  <a href={agent.website} target="_blank" rel="noopener" className="inline-flex items-center gap-2 bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-4 py-2 rounded-lg text-sm font-medium hover:bg-cyan-500/20 transition">
+                    <span>&#x1F310;</span> Website
+                  </a>
+                )}
+                {agent.api_docs_url && (
+                  <a href={agent.api_docs_url} target="_blank" rel="noopener" className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-500/20 transition">
+                    <span>&#x1F4DA;</span> API Docs
+                  </a>
+                )}
+                {agent.api_base_url && (
+                  <a href={agent.api_base_url} target="_blank" rel="noopener" className="inline-flex items-center gap-2 bg-slate-800 text-slate-300 border border-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition">
+                    <span>&#x1F517;</span> Base URL
+                  </a>
+                )}
+              </div>
+
+              {/* Capabilities */}
+              {agent.capabilities && agent.capabilities.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">Capabilities</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {agent.capabilities.map((cap, i) => (
+                      <span key={i} className="text-sm bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 px-3 py-1.5 rounded-lg">
+                        {cap.replace(/_/g, ' ').replace(/-/g, ' ')}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pricing */}
+              {agent.pricing && Object.keys(agent.pricing).length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">Pricing</h3>
+                  <div className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+                    {Object.entries(agent.pricing).map(([tier, price], i) => (
+                      <div key={i} className={`flex justify-between items-center px-4 py-3 ${i > 0 ? 'border-t border-slate-700/50' : ''}`}>
+                        <span className="text-slate-300 font-medium capitalize text-sm">{tier.replace(/_/g, ' ')}</span>
+                        <span className="text-slate-400 text-sm font-mono">{typeof price === 'string' ? price : JSON.stringify(price)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tags */}
+              {agent.tags && agent.tags.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">Tags</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {agent.tags.map((tag, i) => (
+                      <span key={i} className="text-xs bg-slate-800 text-slate-400 px-3 py-1.5 rounded-full border border-slate-700">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ─── Main App ─── */
+    function App() {
+      const [agents, setAgents] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
+      const [search, setSearch] = useState("");
+      const [category, setCategory] = useState("all");
+      const [selectedAgent, setSelectedAgent] = useState(null);
+      const [sortBy, setSortBy] = useState("name");
+      const searchRef = useRef(null);
+
+      useEffect(() => {
+        fetchAgents()
+          .then(data => { setAgents(data); setLoading(false); })
+          .catch(err => { setError(err.message); setLoading(false); });
+      }, []);
+
+      // Keyboard shortcut: / to focus search
+      useEffect(() => {
+        function onKey(e) {
+          if (e.key === "/" && document.activeElement.tagName !== "INPUT") {
+            e.preventDefault();
+            searchRef.current?.focus();
+          }
+          if (e.key === "Escape") setSelectedAgent(null);
+        }
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+      }, []);
+
+      const filtered = useMemo(() => {
+        let list = agents;
+        if (category !== "all") list = list.filter(a => a.category === category);
+        if (search.trim()) {
+          const q = search.toLowerCase();
+          list = list.filter(a =>
+            a.name.toLowerCase().includes(q) ||
+            (a.short_description || "").toLowerCase().includes(q) ||
+            (a.creator || "").toLowerCase().includes(q) ||
+            (a.tags || []).some(t => t.toLowerCase().includes(q)) ||
+            (a.capabilities || []).some(c => c.toLowerCase().includes(q))
+          );
+        }
+        if (sortBy === "name") list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+        if (sortBy === "creator") list = [...list].sort((a, b) => (a.creator || "").localeCompare(b.creator || ""));
+        if (sortBy === "category") list = [...list].sort((a, b) => a.category.localeCompare(b.category));
+        return list;
+      }, [agents, search, category, sortBy]);
+
+      const categoryCounts = useMemo(() => {
+        const counts = { all: agents.length };
+        agents.forEach(a => { counts[a.category] = (counts[a.category] || 0) + 1; });
+        return counts;
+      }, [agents]);
+
+      return (
+        <div className="min-h-screen bg-slate-950">
+          <Nav />
+
+          {/* Hero */}
+          <div className="border-b border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950">
+            <div className="max-w-7xl mx-auto px-6 py-12 md:py-16">
+              <h1 className="text-4xl md:text-5xl font-bold text-white mb-3">Agent Directory</h1>
+              <p className="text-lg text-slate-400 mb-8">Browse {agents.length} AI agents, APIs, frameworks, and tools</p>
+
+              {/* Search */}
+              <div className="relative max-w-2xl">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-lg">&#x1F50D;</span>
+                <input
+                  ref={searchRef}
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full bg-slate-800/80 border border-slate-700 rounded-xl pl-12 pr-16 py-4 text-white text-lg placeholder-slate-500 focus:border-cyan-500 focus:outline-none search-glow transition"
+                  placeholder="Search agents, tools, capabilities..."
+                />
+                <kbd className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 text-xs bg-slate-800 border border-slate-700 px-2 py-1 rounded font-mono">/</kbd>
+              </div>
+            </div>
+          </div>
+
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            {/* Filters bar */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+              {/* Category pills */}
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(CATEGORIES).map(([key, val]) => (
+                  <button
+                    key={key}
+                    onClick={() => setCategory(key)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
+                      category === key
+                        ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/20"
+                        : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
+                    }`}
+                  >
+                    <span>{val.icon}</span>
+                    <span>{val.label}</span>
+                    <span className={`text-xs ml-1 ${category === key ? "text-cyan-100" : "text-slate-600"}`}>
+                      {categoryCounts[key] || 0}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Sort */}
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 text-sm">Sort:</span>
+                {["name", "creator", "category"].map(s => (
+                  <button key={s} onClick={() => setSortBy(s)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition capitalize ${
+                      sortBy === s ? "bg-slate-700 text-white" : "text-slate-500 hover:text-slate-300"
+                    }`}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Results count */}
+            {search && (
+              <div className="mb-6 flex items-center gap-3">
+                <span className="text-slate-400 text-sm">{filtered.length} result{filtered.length !== 1 ? 's' : ''} for "{search}"</span>
+                <button onClick={() => setSearch("")} className="text-xs text-cyan-400 hover:text-cyan-300">Clear</button>
+              </div>
+            )}
+
+            {/* Loading */}
+            {loading && (
+              <div className="text-center py-20">
+                <div className="inline-block w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-slate-400">Loading agents...</p>
+              </div>
+            )}
+
+            {/* Error */}
+            {error && (
+              <div className="text-center py-20">
+                <p className="text-red-400 mb-2">Failed to load agents</p>
+                <p className="text-slate-500 text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!loading && !error && filtered.length === 0 && (
+              <div className="text-center py-20">
+                <div className="text-4xl mb-4">&#x1F50D;</div>
+                <p className="text-slate-400 text-lg mb-2">No agents found</p>
+                <p className="text-slate-500 text-sm">Try adjusting your search or filters</p>
+              </div>
+            )}
+
+            {/* Grid */}
+            {!loading && !error && filtered.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filtered.map((agent, i) => (
+                  <AgentCard key={agent.id} agent={agent} onClick={setSelectedAgent} index={i} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <footer className="border-t border-slate-800 mt-16 py-8 text-center text-slate-500 text-sm">
+            <a href="/" className="text-cyan-400 hover:underline">AgentPedia</a> &mdash; The knowledge base built for AI agents.
+            <span className="mx-2">|</span>
+            <a href="/submit" className="text-cyan-400 hover:underline">Submit an Agent</a>
+            <span className="mx-2">|</span>
+            <a href="/shield" className="text-cyan-400 hover:underline">Shield</a>
+          </footer>
+
+          {/* Detail panel */}
+          {selectedAgent && <AgentDetail agent={selectedAgent} onClose={() => setSelectedAgent(null)} />}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

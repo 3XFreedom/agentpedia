@@ -21,6 +21,14 @@
       "dest": "/shield.html"
     },
     {
+      "src": "/agents$",
+      "dest": "/agents.html"
+    },
+    {
+      "src": "/submit$",
+      "dest": "/submit.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
